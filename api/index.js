@@ -1,24 +1,22 @@
 export default function handler(req, res) {
-    // שליפת הספרות - ימות המשיח שולחת את זה ב-Query String
+    // שליפת המשתנה user_id שיחזור מהמאזין
     const { user_id } = req.query;
 
-    // הגדרת כותרות - חשוב מאוד לימות המשיח!
+    // הגדרת כותרות טקסט נקי
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
     if (!user_id) {
-        // שלב א: בקשת הקשה. 
-        // אם אין לך TTS, החלפתי את "t-טקסט" ב-"תפוח" (שם של קובץ שמע שלא קיים) 
-        // המערכת פשוט תשתוק ותחכה להקשה - זה מצוין לבדיקה!
-        console.log("Requesting digits from user...");
-        
-        // כאן הגדרתי את מודול ההקשה במצב ספרות (digits)
-        const readCommand = "read=f-empty,user_id,1,20,1,digits,yes,no";
-        return res.status(200).send(readCommand);
+        // שלב א: המאזין נכנס.
+        // אנחנו מבקשים הקשה (read). 
+        // השתמשתי ב- "read=f-none" - זה אומר אל תשמיע כלום, פשוט תחכה להקשה.
+        console.log("Waiting for user digits...");
+        return res.status(200).send("read=f-none,user_id,1,20,1,digits,yes,no,no");
     } else {
-        // שלב ב: המשתמש הקיש ספרות
-        console.log("Received digits: " + user_id);
+        // שלב ב: המאזין הקיש מספר.
+        console.log("Received ID: " + user_id);
         
-        // ביצוע לוגין ומעבר לשלוחה 4/1/1
+        // פקודת כניסה ומעבר לשלוחה 4/1/1
+        // הוספתי בכוונה את התווים הנדרשים בלבד
         const response = `id_send_login=${user_id}\ngo_to_folder=/4/1/1`;
         return res.status(200).send(response);
     }
