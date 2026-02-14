@@ -1,18 +1,23 @@
 export default function handler(req, res) {
-    // קבלת הפרמטרים מימות המשיח (הם מגיעים ב-Query String)
-    const { digits } = req.query;
+    // שליפת הספרות שהוקשו (אם הוקשו)
+    const { user_id } = req.query;
 
-    // הגדרת כותרות כדי שימות המשיח יזהה את זה כטקסט פשוט
+    // הגדרת כותרת טקסט פשוט
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
-    if (!digits) {
-        // שלב א: המשתמש עוד לא הקיש. נפעיל את מודול הקשה (במצב ספרות)
-        // הפקודה "read" מבצעת הקשה של טקסט/ספרות
-        const readCommand = "read=t-נא להקיש את מספר הזיהוי ובסיום סולמית,digits,1,20,1,digits,yes,no";
-        return res.status(200).send(readCommand);
+    if (!user_id) {
+        // שלב א: המאזין נכנס בפעם הראשונה.
+        // אנחנו מפעילים את מודול ההקשה (read). 
+        // שים לב: 'digits' בסוף הפקודה מגדיר למערכת להשתמש במקלדת ספרות.
+        console.log("מאזין נכנס - שולח בקשה להקשת ספרות");
+        const readCmd = "read=t-נא להקיש את מספר הזיהוי ובסיום סולמית,user_id,1,20,1,digits,yes,no";
+        return res.status(200).send(readCmd);
     } else {
-        // שלב ב: המשתמש הקיש ספרות. נבצע לוגין ונעבור לתור
-        const response = `id_send_login=${digits}\ngo_to_folder=/4/1/1`;
+        // שלב ב: המאזין הקיש את הספרות והן חזרו לשרת בתוך user_id
+        console.log("התקבלו ספרות מהמאזין: " + user_id);
+        
+        // ביצוע כניסה עם המספר שהוקש ומעבר לשלוחת התור (4/1/1)
+        const response = `id_send_login=${user_id}\ngo_to_folder=/4/1/1`;
         return res.status(200).send(response);
     }
 }
