@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🤖 AI IVR — לוח בקרה</title>
+  <style>
+    /* ══════════════════════════════════════
+       BASE & VARIABLES
+    ══════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue:       #2563eb;
+      --blue-dark:  #1d4ed8;
+      --blue-light: #eff6ff;
+      --green:      #16a34a;
+      --green-bg:   #f0fdf4;
+      --red:        #dc2626;
+      --red-bg:     #fef2f2;
+      --yellow:     #d97706;
+      --yellow-bg:  #fffbeb;
+      --purple:     #7c3aed;
+      --gray-50:    #f8fafc;
+      --gray-100:   #f1f5f9;
+      --gray-200:   #e2e8f0;
+      --gray-400:   #94a3b8;
+      --gray-600:   #475569;
+      --gray-800:   #1e293b;
+      --white:      #ffffff;
+      --radius-sm:  6px;
+      --radius:     12px;
+      --radius-lg:  16px;
+      --shadow:     0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+      --shadow-lg:  0 8px 32px rgba(0,0,0,.12);
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Arial Hebrew', Arial, sans-serif;
+      background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+      color: var(--gray-800);
+      min-height: 100vh;
+      padding: 0 0 64px;
+      line-height: 1.6;
+    }
+
+    /* ══════════════════════════════════════
+       TOP HEADER BAR
+    ══════════════════════════════════════ */
+    .topbar {
+      background: linear-gradient(135deg, #1e3a8a 0%, #4c1d95 100%);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 20px rgba(30,58,138,.3);
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-logo {
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,.15);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+    .topbar-brand h1 {
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -.3px;
+    }
+    .topbar-brand p {
+      color: rgba(255,255,255,.65);
+      font-size: .78rem;
+      margin-top: 1px;
+    }
+    .topbar-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: .8rem;
+      color: #fff;
+    }
+    .topbar-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fbbf24;
+      animation: pulse 2s infinite;
+    }
+    .topbar-status .dot.online { background: #4ade80; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+
+    /* ══════════════════════════════════════
+       PAGE WRAPPER
+    ══════════════════════════════════════ */
+    .page-wrapper {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 28px 16px;
+    }
+
+    /* ══════════════════════════════════════
+       SECTION TITLE
+    ══════════════════════════════════════ */
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      margin-top: 32px;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .section-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .icon-blue   { background: var(--blue-light); }
+    .icon-green  { background: var(--green-bg); }
+    .icon-yellow { background: var(--yellow-bg); }
+    .icon-purple { background: #f5f3ff; }
+    .section-title h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--gray-800);
+    }
+    .section-title p {
+      font-size: .78rem;
+      color: var(--gray-600);
+    }
+
+    /* ══════════════════════════════════════
+       CARD
+    ══════════════════════════════════════ */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .card-inner { padding: 24px; }
+
+    /* ══════════════════════════════════════
+       FIELD GROUPS
+    ══════════════════════════════════════ */
+    .field {
+      margin-bottom: 20px;
+    }
+    .field:last-child { margin-bottom: 0; }
+
+    .field-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .field-label label {
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--gray-800);
+    }
+    .field-label .badge {
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+    .badge-req  { background: #fee2e2; color: #991b1b; }
+    .badge-opt  { background: #f0fdf4; color: #166534; }
+
+    /* תיאור השדה */
+    .field-desc {
+      font-size: .78rem;
+      color: var(--gray-600);
+      margin-bottom: 8px;
+      line-height: 1.5;
+      padding: 8px 10px;
+      background: var(--gray-50);
+      border-radius: var(--radius-sm);
+      border-right: 3px solid var(--blue);
+    }
+    .field-desc strong { color: var(--gray-800); }
+
+    /* תיאור ההשפעה */
+    .field-effect {
+      font-size: .75rem;
+      color: var(--green);
+      margin-top: 6px;
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .field-effect::before { content: "⚡"; flex-shrink: 0; }
+
+    /* שדות קלט */
+    input[type="text"],
+    input[type="password"],
+    input[type="url"],
+    input[type="number"],
+    textarea, select {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      font-size: .92rem;
+      font-family: inherit;
+      color: var(--gray-800);
+      background: #fafbff;
+      transition: border-color .2s, box-shadow .2s;
+      direction: ltr;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 100px; direction: rtl; }
+    select   { cursor: pointer; }
+
+    input.valid { border-color: var(--green); }
+    input.invalid { border-color: var(--red); }
+
+    /* שדה עם כפתור */
+    .input-with-btn {
+      display: flex;
+      gap: 8px;
+    }
+    .input-with-btn input { flex: 1; }
+
+    /* ══════════════════════════════════════
+       DIVIDER
+    ══════════════════════════════════════ */
+    .divider {
+      border: none;
+      border-top: 1px dashed var(--gray-200);
+      margin: 20px 0;
+    }
+
+    /* ══════════════════════════════════════
+       BUTTONS
+    ══════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 11px 22px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .18s;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37,99,235,.3);
+    }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(37,99,235,.4); filter: brightness(1.05); }
+
+    .btn-green {
+      background: var(--green);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(22,163,74,.3);
+    }
+    .btn-green:hover:not(:disabled) { filter: brightness(1.1); }
+
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--gray-200);
+      color: var(--gray-600);
+    }
+    .btn-outline:hover:not(:disabled) { background: var(--gray-50); border-color: var(--gray-400); }
+
+    .btn-sm { padding: 7px 14px; font-size: .82rem; }
+    .btn-xs { padding: 5px 10px; font-size: .76rem; }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .btn-row .spacer { flex: 1; }
+
+    /* ══════════════════════════════════════
+       SPINNER
+    ══════════════════════════════════════ */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .spinner-dark {
+      border-color: rgba(0,0,0,.15);
+      border-top-color: var(--gray-600);
+    }
+
+    /* ══════════════════════════════════════
+       ALERTS / TOAST
+    ══════════════════════════════════════ */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: .88rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      animation: toastIn .3s ease;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 260px;
+      max-width: 400px;
+    }
+    @keyframes toastIn {
+      from { opacity:0; transform: translateY(-10px) scale(.95); }
+      to   { opacity:1; transform: translateY(0) scale(1); }
+    }
+    .toast-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .toast-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .toast-info    { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    .toast-warn    { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+
+    /* ══════════════════════════════════════
+       STATUS ITEMS
+    ══════════════════════════════════════ */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .status-item {
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--gray-200);
+      background: var(--gray-50);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .status-item-label { font-size: .75rem; color: var(--gray-600); font-weight: 600; }
+    .status-item-val   { font-size: .92rem; font-weight: 700; }
+    .status-ok     { border-color: #bbf7d0; background: #f0fdf4; color: var(--green); }
+    .status-error  { border-color: #fecaca; background: #fef2f2; color: var(--red); }
+    .status-warn   { border-color: #fde68a; background: #fefce8; color: var(--yellow); }
+    .status-idle   { color: var(--gray-400); }
+
+    /* ══════════════════════════════════════
+       CODE SNIPPET
+    ══════════════════════════════════════ */
+    .code-block {
+      position: relative;
+      background: #0f172a;
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+    .code-block code {
+      display: block;
+      font-family: 'Courier New', 'Consolas', monospace;
+      font-size: .8rem;
+      color: #e2e8f0;
+      direction: ltr;
+      white-space: pre;
+      line-height: 1.7;
+    }
+    .code-block .copy-btn {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: .72rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+    }
+    .code-block .copy-btn:hover { background: #334155; color: #fff; }
+
+    /* highlight colors in code */
+    .hl-key   { color: #7dd3fc; }
+    .hl-val   { color: #86efac; }
+    .hl-cmt   { color: #64748b; }
+    .hl-url   { color: #c084fc; }
+
+    /* ══════════════════════════════════════
+       INFO BOXES
+    ══════════════════════════════════════ */
+    .info-box {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: .82rem;
+      line-height: 1.6;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .info-box .info-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .info-blue   { background: var(--blue-light); color: #1e40af; border: 1px solid #bfdbfe; }
+    .info-green  { background: var(--green-bg);   color: #166534; border: 1px solid #bbf7d0; }
+    .info-yellow { background: var(--yellow-bg);  color: #92400e; border: 1px solid #fde68a; }
+
+    /* ══════════════════════════════════════
+       TOGGLE SWITCH
+    ══════════════════════════════════════ */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px dashed var(--gray-200);
+    }
+    .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .toggle-info h4 { font-size: .88rem; font-weight: 700; }
+    .toggle-info p  { font-size: .75rem; color: var(--gray-600); }
+    .toggle {
+      position: relative;
+      width: 44px; height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: var(--gray-200);
+      border-radius: 99px;
+      transition: .3s;
+    }
+    .toggle-slider::before {
+      position: absolute;
+      content: "";
+      width: 18px; height: 18px;
+      right: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: .3s;
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    }
+    .toggle input:checked + .toggle-slider { background: var(--blue); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(-20px); }
+
+    /* ══════════════════════════════════════
+       TEST PANEL
+    ══════════════════════════════════════ */
+    .test-response {
+      display: none;
+      margin-top: 16px;
+      background: #0f172a;
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-family: monospace;
+      font-size: .8rem;
+      color: #a5f3fc;
+      white-space: pre-wrap;
+      direction: ltr;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #1e293b;
+    }
+
+    /* ══════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════ */
+    @media (max-width: 600px) {
+      .topbar { padding: 14px 16px; }
+      .topbar-brand h1 { font-size: 1rem; }
+      .card-inner { padding: 16px; }
+      .btn-row { flex-direction: column; }
+      .btn-row .spacer { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ══════════════════════════════════════
+     TOP BAR
+══════════════════════════════════════ -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">🤖</div>
+    <div>
+      <h1>AI IVR — לוח בקרה</h1>
+      <p>ימות המשיח × Gemini AI × Vercel</p>
+    </div>
+  </div>
+  <div class="topbar-status">
+    <span class="dot" id="serverDot"></span>
+    <span id="serverStatusText">בודק שרת...</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════ -->
+<div class="page-wrapper">
+
+  <!-- ───────────────────────────────────
+       SECTION 1: Gemini API Key
+  ─────────────────────────────────────── -->
+  <div class="section-title">
+    <div class="section-icon icon-blue">🔑</div>
+    <div>
+      <h2>הגדרות Gemini AI</h2>
+      <p>המפתח שמחבר את המערכת לבינה המלאכותית של Google</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-inner">
+
+      <!-- Gemini API Key -->
+      <div class="field">
+        <div class="field-label">
+          <label>🔑 Gemini API Key</label>
+          <span class="badge badge-req">חובה</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> המפתח שמאשר לשרת שלך לגשת ל-Gemini AI של Google.
+          בלי המפתח הזה המערכת לא יכולה לעבד שאלות ולענות עליהן.
+          השג מפתח חינמי ב-<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--blue)">aistudio.google.com</a>
+        </div>
+        <div class="input-with-btn">
+          <input type="password" id="geminiKey" placeholder="AIzaSy..." autocomplete="off" oninput="validateGeminiKey()" />
+          <button class="btn btn-outline btn-sm" onclick="toggleVisibility('geminiKey', this)">👁️</button>
+          <button class="btn btn-outline btn-sm" onclick="testGeminiKey()">
+            <span id="gemini-test-spin" style="display:none" class="spinner spinner-dark"></span>
+            בדוק
+          </button>
+        </div>
+        <div class="field-effect">
+          <span>כל שיחת טלפון עוברת דרך המפתח הזה — הוא שולח את שאלת המשתמש ל-Gemini ומקבל תשובה.</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Gemini Model -->
+      <div class="field">
+        <div class="field-label">
+          <label>🧠 מודל Gemini</label>
+          <span class="badge badge-opt">אופציונלי</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> איזה מודל AI ישמש לעיבוד השיחות.
+          <br><strong>gemini-1.5-flash</strong> — מהיר וזול, מומלץ לרוב השימושים בטלפון.
+          <br><strong>gemini-1.5-pro</strong> — חכם יותר, איטי יותר ויקר יותר. לשאלות מורכבות.
+        </div>
+        <select id="geminiModel">
+          <option value="gemini-1.5-flash" selected>gemini-1.5-flash ⚡ (מהיר — מומלץ לטלפון)</option>
+          <option value="gemini-1.5-pro">gemini-1.5-pro 🧠 (חכם יותר)</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash 🚀 (הגרסה החדשה)</option>
+        </select>
+        <div class="field-effect">
+          <span>קובע את מהירות ואיכות התשובות. Flash = ~1-2 שניות, Pro = ~3-5 שניות.</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- System Prompt -->
+      <div class="field">
+        <div class="field-label">
+          <label>🗣️ פרומפט מערכת — "אופי ה-AI"</label>
+          <span class="badge badge-req">חובה</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> ה"הוראות" שה-AI מקבל לפני כל שיחה.
+          זה מה שמגדיר אם הוא ידבר בעברית, כמה ארוכות יהיו התשובות, ומה התפקיד שלו.
+          <strong>זה הדבר הכי חשוב לאיכות השיחה!</strong>
+        </div>
+        <textarea id="systemPrompt" rows="6" placeholder="הכנס פרומפט מערכת...">אתה עוזר קולי חכם המשולב במערכת IVR בעברית.
+תפקידך לענות בקצרה ובבהירות על שאלות המשתמשים.
+כללים:
+- ענה תמיד בעברית בלבד
+- עד 2 משפטים קצרים — כי זה נשמע בטלפון
+- אל תשתמש בסימנים מיוחדים או HTML
+- אם לא הבנת — בקש בנימוס לחזור</textarea>
+        <div class="field-effect">
+          <span>הפרומפט הזה נשלח ל-Gemini לפני כל שאלה. הוא קובע את "אופי" ה-AI שהמתקשרים ישמעו.</span>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-xs" onclick="setPrompt('support')">🎧 שירות לקוחות</button>
+          <button class="btn btn-outline btn-xs" onclick="setPrompt('info')">📋 מידע כללי</button>
+          <button class="btn btn-outline btn-xs" onclick="setPrompt('order')">🛒 הזמנות</button>
+          <button class="btn btn-outline btn-xs" onclick="setPrompt('medical')">🏥 מרפאה</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────
+       SECTION 2: ימות המשיח
+  ─────────────────────────────────────── -->
+  <div class="section-title">
+    <div class="section-icon icon-green">📞</div>
+    <div>
+      <h2>הגדרות ימות המשיח</h2>
+      <p>חיבור לחשבון ימות להורדת הקלטות ולניהול</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-inner">
+
+      <!-- Yemot Token -->
+      <div class="field">
+        <div class="field-label">
+          <label>🔐 טוקן API של ימות (API KEY קבוע)</label>
+          <span class="badge badge-req">חובה</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> מפתח קבוע שמאשר לשרת שלנו לתקשר עם מערכת ימות המשיח שלך.
+          הוא משמש להורדת קבצי ההקלטה שהמתקשרים מקליטים.
+          <br>⚙️ <strong>איך ליצור:</strong> כנס ללוח ניהול ימות → "חומת האש" → "הוסף API KEY" → העתק.
+        </div>
+        <div class="input-with-btn">
+          <input type="password" id="yemotToken" placeholder="077XXXXXXX:1234" autocomplete="off" />
+          <button class="btn btn-outline btn-sm" onclick="toggleVisibility('yemotToken', this)">👁️</button>
+          <button class="btn btn-outline btn-sm" onclick="testYemotToken()">
+            <span id="yemot-test-spin" style="display:none" class="spinner spinner-dark"></span>
+            בדוק
+          </button>
+        </div>
+        <div class="field-effect">
+          <span>כאשר מתקשר מקליט הודעה, השרת מוריד את ההקלטה מימות בעזרת הטוקן הזה ושולח אותה ל-Gemini.</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Yemot Extension for recordings -->
+      <div class="field">
+        <div class="field-label">
+          <label>📁 שלוחה לשמירת קבצי הקלטה</label>
+          <span class="badge badge-opt">אופציונלי</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> מספר השלוחה בימות שבה יישמרו קבצי ההקלטה של המתקשרים.
+          לדוגמה: <code>1</code> יגרום לשמירה בשלוחה /1 במערכת שלך.
+          ברירת מחדל: <strong>1</strong>
+        </div>
+        <input type="text" id="yemotExt" placeholder="1" value="1" style="max-width:120px" />
+        <div class="field-effect">
+          <span>קבצי ההקלטה של שיחות ה-AI יישמרו בשלוחה שתגדיר כאן.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────
+       SECTION 3: הגדרות שיחה
+  ─────────────────────────────────────── -->
+  <div class="section-title">
+    <div class="section-icon icon-yellow">🎙️</div>
+    <div>
+      <h2>הגדרות השיחה</h2>
+      <p>כיצד המערכת מתנהגת במהלך שיחות המתקשרים</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-inner">
+
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <h4>🎵 מוזיקה בהמתנה</h4>
+          <p>האם לנגן מוזיקה בזמן שה-AI מעבד את השאלה (ברירת מחדל: כן)</p>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="musicOnHold" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <h4>🔄 שיחה רב-סיבובית</h4>
+          <p>האם לשמור היסטוריית שיחה (המתקשר יכול להמשיך לשאול שאלות)</p>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="multiTurn" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <h4>📝 תמלול בלבד (ללא אודיו)</h4>
+          <p>אם אין הקלטה קולית — המערכת עובדת עם טקסט שהמשתמש הקיש במקלדת</p>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="textFallback" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="field">
+        <div class="field-label">
+          <label>⏱️ זמן מקסימלי להקלטה (שניות)</label>
+          <span class="badge badge-opt">אופציונלי</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> כמה שניות המתקשר יכול לדבר לפני שהמערכת מפסיקה להקשיב.
+          ערך קצר מדי (פחות מ-5) לא מאפשר שאלה מלאה. ארוך מדי (מעל 20) יגרום לעיכוב.
+          <strong>מומלץ: 10 שניות</strong>
+        </div>
+        <input type="number" id="maxRecordSecs" value="10" min="3" max="30" style="max-width:120px" />
+        <div class="field-effect">
+          <span>אחרי הזמן הזה המערכת שולחת את ההקלטה ל-Gemini ומחכה לתשובה.</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <label>📏 אורך מקסימלי לתשובת AI (תווים)</label>
+          <span class="badge badge-opt">אופציונלי</span>
+        </div>
+        <div class="field-desc">
+          <strong>מה זה?</strong> כמה תווים מקסימלית יהיו בתשובת ה-AI שנשמעת בטלפון.
+          תשובה ארוכה = זמן השמעה ארוך יותר. לטלפון מומלץ עד 300 תווים (~2 משפטים).
+        </div>
+        <input type="number" id="maxResponseChars" value="300" min="50" max="1000" style="max-width:120px" />
+        <div class="field-effect">
+          <span>הגבלה זו חוסכת עלויות API ומשפרת חוויית הטלפון.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────
+       SECTION 4: כתובת ה-Endpoint
+  ─────────────────────────────────────── -->
+  <div class="section-title">
+    <div class="section-icon icon-purple">🌐</div>
+    <div>
+      <h2>כתובת ה-Endpoint</h2>
+      <p>הכתובת שיש להזין בשלוחת ה-API בימות</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-inner">
+
+      <div class="info-box info-blue" style="margin-bottom:16px">
+        <span class="info-icon">💡</span>
+        <span>
+          זוהי הכתובת שעליך להזין בלוח הניהול של ימות המשיח בשדה <strong>api_url</strong>.
+          ימות תשלח לכתובת הזו את פרטי כל שיחה, והשרת שלנו יענה לה.
+        </span>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <label>🔗 Endpoint URL — הכתובת לימות המשיח</label>
+        </div>
+        <div style="
+          background: linear-gradient(135deg,#eff6ff,#f5f3ff);
+          border: 2px solid var(--blue);
+          border-radius: var(--radius-sm);
+          padding: 14px 16px;
+          font-family: monospace;
+          font-size: .92rem;
+          direction: ltr;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          flex-wrap: wrap;
+          word-break: break-all;
+        ">
+          <span id="endpointDisplay" style="color:var(--blue);font-weight:700;flex:1">
+            https://api-xi-one-31.vercel.app/api/ivr
+          </span>
+          <button class="btn btn-primary btn-sm" onclick="copyText('https://api-xi-one-31.vercel.app/api/ivr')">📋 העתק</button>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="field">
+        <div class="field-label">
+          <label>📋 קוד הגדרות מלא לשלוחת ה-API בימות</label>
+        </div>
+        <div class="field-desc">
+          <strong>איך להשתמש:</strong> בלוח הניהול של ימות המשיח, צור שלוחה חדשה מסוג <strong>"API"</strong>.
+          בשדה "הגדרות" הדבק את הקוד הבא כמות שהוא (בהתאמה לבחירות שלך למעלה):
+        </div>
+        <div class="code-block" id="yemotConfigBlock">
+          <button class="copy-btn" onclick="copyCodeBlock('yemotConfigBlock')">📋 העתק</button>
+          <code id="yemotConfigCode"></code>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────
+       SECTION 5: בדיקת מערכת
+  ─────────────────────────────────────── -->
+  <div class="section-title">
+    <div class="section-icon icon-blue">🔬</div>
+    <div>
+      <h2>בדיקת מערכת</h2>
+      <p>וודא שהכל עובד לפני שהמתקשרים מגיעים</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-inner">
+
+      <div class="status-grid" id="statusGrid">
+        <div class="status-item status-idle" id="status-server">
+          <span class="status-item-label">🌐 שרת Vercel</span>
+          <span class="status-item-val" id="sv-val">לא נבדק</span>
+        </div>
+        <div class="status-item status-idle" id="status-gemini">
+          <span class="status-item-label">🤖 Gemini API</span>
+          <span class="status-item-val" id="gm-val">לא נבדק</span>
+        </div>
+        <div class="status-item status-idle" id="status-yemot">
+          <span class="status-item-label">📞 ימות המשיח</span>
+          <span class="status-item-val" id="ym-val">לא נבדק</span>
+        </div>
+        <div class="status-item status-idle" id="status-config">
+          <span class="status-item-label">⚙️ הגדרות</span>
+          <span class="status-item-val" id="cfg-val">לא נשמר</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="field">
+        <div class="field-label">
+          <label>🧪 שלח שאלת בדיקה ל-AI</label>
+        </div>
+        <div class="field-desc">
+          סימולציה של שיחה אמיתית — שולח טקסט לשרת ומחזיר את התשובה שהמתקשר היה שומע.
+        </div>
+        <div class="input-with-btn">
+          <input type="text" id="testQuestion" value="מה אתה יכול לעשות בשבילי?" dir="rtl" />
+          <button class="btn btn-green btn-sm" onclick="sendTestQuestion()">
+            <span id="test-q-spin" style="display:none" class="spinner"></span>
+            שלח
+          </button>
+        </div>
+        <div class="test-response" id="testResponse"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="runAllTests()">
+          <span id="all-test-spin" style="display:none" class="spinner"></span>
+          🔍 בדוק הכל
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────
+       MAIN SAVE BUTTON
+  ─────────────────────────────────────── -->
+  <div class="btn-row" style="margin-top:8px;border-top:none;padding-top:0">
+    <div class="spacer"></div>
+    <button class="btn btn-outline" onclick="resetForm()">↩️ איפוס</button>
+    <button class="btn btn-primary" onclick="saveAllConfig()" style="min-width:180px">
+      <span id="save-main-spin" style="display:none" class="spinner"></span>
+      💾 שמור ועדכן מערכת
+    </button>
+  </div>
+
+  <!-- ───────────────────────────────────
+       EXPLANATION SECTION
+  ─────────────────────────────────────── -->
+  <div class="section-title" style="margin-top:40px">
+    <div class="section-icon icon-yellow">📖</div>
+    <div>
+      <h2>מה בדיוק כל הגדרה עושה?</h2>
+      <p>הסבר מלא על זרימת המערכת</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-inner">
+      <div class="info-box info-yellow" style="margin-bottom:20px">
+        <span class="info-icon">⚠️</span>
+        <span>כל ההגדרות נשמרות ב-<strong>localStorage</strong> בדפדפן שלך. לשמירה קבועה — הזן אותן כ-Environment Variables ב-Vercel Dashboard.</span>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:.83rem">
+        <thead>
+          <tr style="background:var(--gray-50)">
+            <th style="padding:10px 12px;text-align:right;border:1px solid var(--gray-200);font-weight:700">הגדרה</th>
+            <th style="padding:10px 12px;text-align:right;border:1px solid var(--gray-200);font-weight:700">מה היא עושה</th>
+            <th style="padding:10px 12px;text-align:right;border:1px solid var(--gray-200);font-weight:700">מה קורה אם לא מוגדרת</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700;white-space:nowrap">Gemini API Key</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">מאפשר לשרת לגשת ל-Gemini ולקבל תשובות AI</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--red)">המערכת לא תפעל — תשובת שגיאה לכל שיחה</td>
+          </tr>
+          <tr style="background:var(--gray-50)">
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700">מודל Gemini</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">קובע מהירות ואיכות תשובות. Flash=מהיר, Pro=חכם</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--yellow)">יופעל Flash (ברירת מחדל)</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700">פרומפט מערכת</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">מגדיר "אופי" ה-AI — שפה, קצרות, תפקיד</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--yellow)">AI בסיסי ללא הנחיות — עלול לענות ארוך מדי</td>
+          </tr>
+          <tr style="background:var(--gray-50)">
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700">טוקן ימות</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">מאפשר הורדת הקלטות קוליות מימות לשרת</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--yellow)">עובד עם טקסט בלבד (ללא הקלטות קוליות)</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700">מוזיקה בהמתנה</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">מנגנת מוזיקה בזמן שה-AI חושב (~2 שניות)</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--yellow)">שקט — עלול להרגיש שהמערכת "קרסה"</td>
+          </tr>
+          <tr style="background:var(--gray-50)">
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700">שיחה רב-סיבובית</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">שומר זיכרון שיחה — המתקשר יכול להמשיך לשאול</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--yellow)">כל שאלה עצמאית — ה-AI "שוכח" מה נאמר קודם</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);font-weight:700">זמן מקסימלי להקלטה</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200)">כמה שניות המתקשר יכול לדבר</td>
+            <td style="padding:10px 12px;border:1px solid var(--gray-200);color:var(--yellow)">ברירת מחדל 10 שניות</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /page-wrapper -->
+
+<!-- ══════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+  // ════════════════════════════════
+  //  CONSTANTS
+  // ════════════════════════════════
+  const SERVER_BASE = "https://api-xi-one-31.vercel.app";
+  const STORAGE_KEY = "ai_ivr_v2_config";
+
+  // ════════════════════════════════
+  //  TOAST SYSTEM
+  // ════════════════════════════════
+  function toast(msg, type = "info", duration = 3500) {
+    const container = document.getElementById("toastContainer");
+    const el = document.createElement("div");
+    el.className = `toast toast-${type}`;
+    const icons = { success:"✅", error:"❌", info:"ℹ️", warn:"⚠️" };
+    el.innerHTML = `<span>${icons[type]||"•"}</span><span>${msg}</span>`;
+    container.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = "0";
+      el.style.transition = "opacity .3s";
+      setTimeout(() => el.remove(), 300);
+    }, duration);
+  }
+
+  // ════════════════════════════════
+  //  STORAGE
+  // ════════════════════════════════
+  function getConfig() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function setConfig(updates) {
+    const current = getConfig();
+    const merged  = { ...current, ...updates };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    return merged;
+  }
+
+  function loadSavedValues() {
+    const cfg = getConfig();
+    if (cfg.geminiKey)          document.getElementById("geminiKey").value          = cfg.geminiKey;
+    if (cfg.geminiModel)        document.getElementById("geminiModel").value         = cfg.geminiModel;
+    if (cfg.systemPrompt)       document.getElementById("systemPrompt").value        = cfg.systemPrompt;
+    if (cfg.yemotToken)         document.getElementById("yemotToken").value          = cfg.yemotToken;
+    if (cfg.yemotExt)           document.getElementById("yemotExt").value            = cfg.yemotExt;
+    if (cfg.maxRecordSecs)      document.getElementById("maxRecordSecs").value       = cfg.maxRecordSecs;
+    if (cfg.maxResponseChars)   document.getElementById("maxResponseChars").value    = cfg.maxResponseChars;
+    if (typeof cfg.musicOnHold     === "boolean") document.getElementById("musicOnHold").checked     = cfg.musicOnHold;
+    if (typeof cfg.multiTurn       === "boolean") document.getElementById("multiTurn").checked       = cfg.multiTurn;
+    if (typeof cfg.textFallback    === "boolean") document.getElementById("textFallback").checked    = cfg.textFallback;
+    updateYemotConfig();
+    if (Object.keys(cfg).length > 0) {
+      setStatusItem("status-config", "cfg-val", "נשמר ✓", "ok");
+    }
+  }
+
+  // ════════════════════════════════
+  //  MAIN SAVE
+  // ════════════════════════════════
+  async function saveAllConfig() {
+    const btn = document.querySelector(".btn-primary[onclick='saveAllConfig()']");
+    const spin = document.getElementById("save-main-spin");
+    spin.style.display = "inline-block";
+    btn.disabled = true;
+
+    const cfg = {
+      geminiKey:         document.getElementById("geminiKey").value.trim(),
+      geminiModel:       document.getElementById("geminiModel").value,
+      systemPrompt:      document.getElementById("systemPrompt").value.trim(),
+      yemotToken:        document.getElementById("yemotToken").value.trim(),
+      yemotExt:          document.getElementById("yemotExt").value.trim() || "1",
+      maxRecordSecs:     parseInt(document.getElementById("maxRecordSecs").value) || 10,
+      maxResponseChars:  parseInt(document.getElementById("maxResponseChars").value) || 300,
+      musicOnHold:       document.getElementById("musicOnHold").checked,
+      multiTurn:         document.getElementById("multiTurn").checked,
+      textFallback:      document.getElementById("textFallback").checked,
+    };
+
+    // בדיקת שדות חובה
+    if (!cfg.geminiKey) {
+      toast("חסר Gemini API Key!", "error");
+      spin.style.display = "none"; btn.disabled = false;
+      document.getElementById("geminiKey").focus();
+      return;
+    }
+    if (!cfg.systemPrompt) {
+      toast("חסר פרומפט מערכת!", "error");
+      spin.style.display = "none"; btn.disabled = false;
+      return;
+    }
+
+    // שמירה מקומית
+    setConfig(cfg);
+
+    // שליחה לשרת (אם זמין)
+    try {
+      const resp = await fetch(`${SERVER_BASE}/api/ivr/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cfg),
+      });
+      const data = await resp.json();
+      if (data.success === false) {
+        toast("נשמר מקומית. לשמירה קבועה — עדכן Environment Variables ב-Vercel.", "warn", 5000);
+      } else {
+        toast("✅ הגדרות נשמרו בהצלחה!", "success");
+      }
+    } catch {
+      toast("נשמר מקומית (שרת לא הגיב)", "warn");
+    }
+
+    setStatusItem("status-config", "cfg-val", "נשמר ✓", "ok");
+    updateYemotConfig();
+    spin.style.display = "none";
+    btn.disabled = false;
+  }
+
+  // ════════════════════════════════
+  //  TEST GEMINI KEY
+  // ════════════════════════════════
+  async function testGeminiKey() {
+    const key  = document.getElementById("geminiKey").value.trim();
+    const spin = document.getElementById("gemini-test-spin");
+    if (!key) { toast("הזן Gemini API Key תחילה", "warn"); return; }
+
+    spin.style.display = "inline-block";
+    setStatusItem("status-gemini", "gm-val", "בודק...", "");
+
+    try {
+      const resp = await fetch(`${SERVER_BASE}/api/ivr/test?text=שלום+ענה+במשפט+אחד`);
+      const data = await resp.json();
+      if (data.gemini) {
+        setStatusItem("status-gemini", "gm-val", "✅ תקין", "ok");
+        toast(`Gemini ענה: "${data.geminiAnswer}"`, "success", 5000);
+      } else {
+        const err = (data.errors||[]).find(e=>e.includes("Gemini"))||"שגיאה";
+        setStatusItem("status-gemini", "gm-val", "❌ שגיאה", "error");
+        toast("Gemini: " + err, "error");
+      }
+    } catch (e) {
+      setStatusItem("status-gemini", "gm-val", "❌ שגיאה", "error");
+      toast("שגיאת רשת: " + e.message, "error");
+    }
+    spin.style.display = "none";
+  }
+
+  // ════════════════════════════════
+  //  TEST YEMOT TOKEN
+  // ════════════════════════════════
+  async function testYemotToken() {
+    const token = document.getElementById("yemotToken").value.trim();
+    const spin  = document.getElementById("yemot-test-spin");
+    if (!token) { toast("הזן טוקן ימות תחילה", "warn"); return; }
+
+    spin.style.display = "inline-block";
+    setStatusItem("status-yemot", "ym-val", "בודק...", "");
+
+    try {
+      const resp = await fetch(`${SERVER_BASE}/api/ivr/test?token=${encodeURIComponent(token)}`);
+      const data = await resp.json();
+      if (data.yemot) {
+        const d = data.yemotDetails || {};
+        setStatusItem("status-yemot", "ym-val", `✅ ${d.name||d.username||"מחובר"}`, "ok");
+        toast(`ימות מחובר: ${d.name||d.username} | יחידות: ${d.units||"N/A"}`, "success");
+      } else {
+        const err = (data.errors||[]).find(e=>e.includes("ימות"))||"שגיאה";
+        setStatusItem("status-yemot", "ym-val", "❌ שגיאה", "error");
+        toast("ימות: " + err, "error");
+      }
+    } catch (e) {
+      setStatusItem("status-yemot", "ym-val", "❌ שגיאה", "error");
+      toast("שגיאת רשת: " + e.message, "error");
+    }
+    spin.style.display = "none";
+  }
+
+  // ════════════════════════════════
+  //  RUN ALL TESTS
+  // ════════════════════════════════
+  async function runAllTests() {
+    const spin = document.getElementById("all-test-spin");
+    spin.style.display = "inline-block";
+
+    // בדיקת שרת
+    try {
+      const r = await fetch(`${SERVER_BASE}/api/ivr/config`);
+      if (r.ok) {
+        setStatusItem("status-server", "sv-val", "✅ פועל", "ok");
+        document.getElementById("serverDot").classList.add("online");
+        document.getElementById("serverStatusText").textContent = "השרת פועל";
+      } else {
+        setStatusItem("status-server", "sv-val", `❌ ${r.status}`, "error");
+      }
+    } catch {
+      setStatusItem("status-server", "sv-val", "❌ לא זמין", "error");
+    }
+
+    const cfg = getConfig();
+    const token = document.getElementById("yemotToken").value.trim() || cfg.yemotToken || "";
+
+    try {
+      const resp = await fetch(`${SERVER_BASE}/api/ivr/test?text=שלום${token?`&token=${encodeURIComponent(token)}`:""}`);
+      const data = await resp.json();
+
+      if (data.gemini) {
+        setStatusItem("status-gemini","gm-val","✅ תקין","ok");
+      } else {
+        const e = (data.errors||[]).find(e=>e.includes("Gemini"))||"שגיאה";
+        setStatusItem("status-gemini","gm-val","❌ "+e.replace("Gemini: ",""),"error");
+      }
+
+      if (data.yemot) {
+        const d = data.yemotDetails||{};
+        setStatusItem("status-yemot","ym-val",`✅ ${d.name||"מחובר"}`,"ok");
+      } else {
+        setStatusItem("status-yemot","ym-val","⚠️ ללא טוקן","warn");
+      }
+
+      toast("בדיקה הושלמה!", "success");
+    } catch (e) {
+      toast("שגיאה בבדיקה: " + e.message, "error");
+    }
+
+    spin.style.display = "none";
+  }
+
+  // ════════════════════════════════
+  //  SEND TEST QUESTION
+  // ════════════════════════════════
+  async function sendTestQuestion() {
+    const q    = document.getElementById("testQuestion").value.trim();
+    const spin = document.getElementById("test-q-spin");
+    const box  = document.getElementById("testResponse");
+    if (!q) { toast("הזן שאלה", "warn"); return; }
+
+    spin.style.display = "inline-block";
+    box.style.display  = "block";
+    box.textContent    = "שולח ל-AI...";
+
+    try {
+      const params = new URLSearchParams({
+        ApiPhone:     "0500000000",
+        ApiCallId:    "test_" + Date.now(),
+        ApiExtension: document.getElementById("yemotExt").value || "1",
+        read_id:      q,
+      });
+      const resp = await fetch(`${SERVER_BASE}/api/ivr?${params}`);
+      const text = await resp.text();
+      box.textContent = text;
+      toast("התשובה שהמתקשר היה שומע 👆", "success", 4000);
+    } catch (e) {
+      box.textContent = "שגיאה: " + e.message;
+      toast(e.message, "error");
+    }
+    spin.style.display = "none";
+  }
+
+  // ════════════════════════════════
+  //  YEMOT CONFIG CODE GENERATOR
+  // ════════════════════════════════
+  function updateYemotConfig() {
+    const ext   = document.getElementById("yemotExt").value.trim()   || "1";
+    const secs  = document.getElementById("maxRecordSecs").value      || "10";
+    const music = document.getElementById("musicOnHold").checked;
+
+    const lines = [
+      `api_url=https://api-xi-one-31.vercel.app/api/ivr`,
+      `api_send_params=ApiCallId,ApiPhone,ApiDID,ApiExtension`,
+      music ? `api_wait_answer_music_on_hold=yes` : `# api_wait_answer_music_on_hold=no`,
+      `say_api_answer=no`,
+      ``,
+      `# הגדרת קבלת קלט קולי מהמשתמש`,
+      `read=user_audio,v(${ext}/input),1,${secs},5000,#`,
+    ];
+    document.getElementById("yemotConfigCode").textContent = lines.join("\n");
+  }
+
+  // ════════════════════════════════
+  //  PRESET PROMPTS
+  // ════════════════════════════════
+  const PROMPTS = {
+    support: `אתה נציג שירות לקוחות ודבר ראשון אמור "שלום, אני כאן לעזור".
+עונה על שאלות בנוגע למוצרים ושירותים בעברית.
+תשובות קצרות — עד 2 משפטים. ללא סימנים מיוחדים.`,
+
+    info: `אתה מערכת מידע אוטומטית של הארגון.
+עונה על שאלות בנוגע לשעות פעילות, כתובת, ומחירים.
+ענה בעברית, קצר וברור, עד משפט אחד.`,
+
+    order: `אתה עוזר הזמנות. בקש מהמשתמש מספר הזמנה ואשר את הפרטים.
+שאל שאלה אחת בכל פעם. עברית בלבד. קצר וממוקד.`,
+
+    medical: `אתה מזכירות קלינית אוטומטית.
+עזור לקבוע תורים, ספק מידע על שעות קבלה, והפנה לרופא המתאים.
+ענה בעברית, בנימוס, עד 2 משפטים קצרים.`,
+  };
+
+  function setPrompt(type) {
+    document.getElementById("systemPrompt").value = PROMPTS[type] || "";
+    toast("פרומפט הוגדר — אל תשכח לשמור!", "info");
+  }
+
+  // ════════════════════════════════
+  //  HELPERS
+  // ════════════════════════════════
+  function toggleVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    btn.textContent = isPassword ? "🙈" : "👁️";
+  }
+
+  function validateGeminiKey() {
+    const key   = document.getElementById("geminiKey").value.trim();
+    const input = document.getElementById("geminiKey");
+    if (key.length > 10) {
+      input.classList.add("valid");
+      input.classList.remove("invalid");
+    } else if (key.length > 0) {
+      input.classList.add("invalid");
+      input.classList.remove("valid");
+    } else {
+      input.classList.remove("valid","invalid");
+    }
+  }
+
+  function setStatusItem(cardId, valId, text, state) {
+    const card = document.getElementById(cardId);
+    const val  = document.getElementById(valId);
+    card.className = "status-item" + (state ? ` status-${state}` : " status-idle");
+    val.textContent = text;
+  }
+
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => toast("הועתק ללוח! 📋", "success"));
+  }
+
+  function copyCodeBlock(blockId) {
+    const code = document.getElementById(blockId).querySelector("code").textContent;
+    navigator.clipboard.writeText(code).then(() => toast("קוד הועתק ללוח! 📋", "success"));
+  }
+
+  function resetForm() {
+    if (!confirm("האם לאפס את כל ההגדרות?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  }
+
+  // ════════════════════════════════
+  //  CHECK SERVER ON LOAD
+  // ════════════════════════════════
+  async function checkServerOnLoad() {
+    try {
+      const r = await fetch(`${SERVER_BASE}/api/ivr/config`);
+      if (r.ok) {
+        document.getElementById("serverDot").classList.add("online");
+        document.getElementById("serverStatusText").textContent = "השרת פועל ✅";
+        setStatusItem("status-server","sv-val","✅ פועל","ok");
+      }
+    } catch {
+      document.getElementById("serverStatusText").textContent = "שרת לא זמין";
+    }
+  }
+
+  // ════════════════════════════════
+  //  LIVE UPDATES ON INPUT CHANGE
+  // ════════════════════════════════
+  ["yemotExt","maxRecordSecs","musicOnHold"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", updateYemotConfig);
+  });
+
+  // ════════════════════════════════
+  //  INIT
+  // ════════════════════════════════
+  window.addEventListener("DOMContentLoaded", () => {
+    loadSavedValues();
+    updateYemotConfig();
+    checkServerOnLoad();
+  });
+</script>
+</body>
+</html>
