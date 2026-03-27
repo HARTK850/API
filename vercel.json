@@ -1,5 +1,11 @@
 {
-  "version": 2,
-  "builds": [{ "src": "server.js", "use": "@vercel/node" }],
-  "rewrites": [{ "source": "/(.*)", "destination": "/server.js" }]
+  "name": "gemini-ivr",
+  "version": "1.0.0",
+  "dependencies": {
+    "@google/generative-ai": "^0.3.0",
+    "@vercel/blob": "^0.22.1",
+    "formidable": "^3.5.1",
+    "google-tts-api": "^2.0.2"
+  },
+  "engines": { "node": ">=18" }
 }
