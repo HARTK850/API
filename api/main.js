@@ -5,62 +5,64 @@ import * as googleTTS from 'google-tts-api';
 import formidable from 'formidable';
 import fs from 'fs/promises';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// שימוש במודל הספציפי שביקשת
-const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
-
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
-    const { method } = req;
-    
-    // הגדרת תגובה כטקסט פשוט עבור ימות המשיח
+    // הגדרת Header קריטי לימות המשיח [1]
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
     try {
-        if (method === 'POST') {
-            const form = formidable();
-            const [fields, files] = await form.parse(req);
-            
-            // בדיקה אם הקובץ הגיע (formidable לעיתים מחזיר מערך)
-            const audioFile = Array.isArray(files.audio_file) ? files.audio_file : files.audio_file;
+        console.log("Request received, method:", req.method);
 
-            if (!audioFile) {
-                return res.status(200).send("id_list_message=t-לא התקבל קובץ שמע מהמערכת");
-            }
+        if (req.method !== 'POST') {
+            return res.status(200).send("id_list_message=t-נא להתקשר דרך המערכת בלבד");
+        }
 
-            const audioData = await fs.readFile(audioFile.filepath);
-            const base64Audio = audioData.toString('base64');
+        const form = formidable();
+        const [fields, files] = await form.parse(req);
+        
+        // שליפה בטוחה של הקובץ מהמערך ש-Formidable מחזיר
+        const audioFile = Array.isArray(files.audio_file) ? files.audio_file : files.audio_file;
 
-            const prompt = "המשתמש דיבר בהקלטה המצורפת. זהה את השאלה וענה עליה בעברית קצרה מאוד. אם הדיבור לא ברור - בקש מהמשתמש לחזור על דבריו.";
+        if (!audioFile) {
+            console.error("No audio file found in request");
+            return res.status(200).send("id_list_message=t-שגיאה. לא התקבלה הקלטה בשרת");
+        }
 
-            // שליחה ל-Gemini
-            const result = await model.generateContent([
-                prompt,
-                { inlineData: { data: base64Audio, mimeType: "audio/wav" } }
-            ]);
-            const responseText = result.response.text();
+        // אתחול Gemini עם המודל הספציפי שדרשת
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
 
-            // יצירת קובץ שמע (TTS)
-            const ttsUrl = googleTTS.getAudioUrl(responseText, {
-                lang: 'he',
-                slow: false,
-                host: 'https://translate.google.com',
-            });
+        const audioData = await fs.readFile(audioFile.filepath);
+        const base64Audio = audioData.toString('base64');
 
-            const ttsResponse = await fetch(ttsUrl);
-            const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-            const blob = await put(`responses/${Date.now()}.mp3`, audioBuffer, { access: 'public' });
+        const prompt = "המשתמש דיבר בהקלטה המצורפת. זהה את השאלה וענה עליה בעברית קצרה מאוד. אם לא ברור - בקש חזרה.";
 
-            // החזרת URL להשמעה בימות המשיח
-            return res.status(200).send(`id_list_message=f-${blob.url}`);
-        } 
+        console.log("Sending to Gemini...");
+        const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: base64Audio, mimeType: "audio/wav" } }
+        ]);
+        const responseText = result.response.text();
+        console.log("Gemini response:", responseText);
 
-        return res.status(404).send("Not Found");
+        const ttsUrl = googleTTS.getAudioUrl(responseText, {
+            lang: 'he',
+            slow: false,
+            host: 'https://translate.google.com',
+        });
+
+        const ttsResponse = await fetch(ttsUrl);
+        const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
+        const blob = await put(`responses/${Date.now()}.mp3`, audioBuffer, { access: 'public' });
+
+        console.log("Blob created:", blob.url);
+        // החזרת פקודה להשמעת הקובץ [2]
+        return res.status(200).send(`id_list_message=f-${blob.url}`);
 
     } catch (error) {
-        console.error("Gemini/Vercel Error:", error);
-        // החזרת שגיאה בצורת TTS למחייג כדי שלא יחזור לתפריט הראשי בלי הסבר
-        return res.status(200).send(`id_list_message=t-חלה שגיאה בשרת. ${error.message}`);
+        console.error("CRITICAL ERROR:", error);
+        // החזרת השגיאה כטקסט להקראה בטלפון כדי שתדע מה קרה
+        return res.status(200).send(`id_list_message=t-שגיאת שרת. ${error.message.replace(/[^א-תa-zA-Z0-9 ]/g, '')}`);
     }
 }
