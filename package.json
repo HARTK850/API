@@ -1,11 +1,13 @@
 {
-  "name": "gemini-ivr",
+  "name": "yemot-gemini-bot",
   "version": "1.0.0",
-  "dependencies": {
-    "@google/generative-ai": "^0.3.0",
-    "@vercel/blob": "^0.22.1",
-    "formidable": "^3.5.1",
-    "google-tts-api": "^2.0.2"
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js"
   },
-  "engines": { "node": ">=18" }
+  "dependencies": {
+    "@google/generative-ai": "^0.2.1",
+    "@vercel/kv": "^1.0.1",
+    "express": "^4.18.2"
+  }
 }
