@@ -1,4 +1,4 @@
-import { put, get } from "@vercel/blob";
+import { put } from "@vercel/blob";
 
 // =============================
 // ENV
@@ -18,7 +18,7 @@ function getKey() {
 }
 
 // =============================
-// FETCH RECORD FROM YEMOT
+// DOWNLOAD RECORD
 // =============================
 async function fetchRecording(path) {
 
@@ -26,15 +26,65 @@ async function fetchRecording(path) {
 
   const res = await fetch(url);
 
-  if (!res.ok) throw new Error("failed download");
+  if (!res.ok) throw new Error("download failed");
 
   return await res.arrayBuffer();
 }
 
 // =============================
-// GEMINI AUDIO
+// LOAD USER (FIXED)
 // =============================
-async function askGeminiAudio(buffer) {
+async function getUser(phone) {
+  try {
+
+    const res = await fetch(`https://blob.vercel-storage.com/users/${phone}.json`);
+
+    if (!res.ok) throw new Error();
+
+    return await res.json();
+
+  } catch {
+    return { sessions: [] };
+  }
+}
+
+// =============================
+// SAVE USER
+// =============================
+async function saveUser(phone, data) {
+
+  const blob = await put(
+    `users/${phone}.json`,
+    JSON.stringify(data),
+    { access: "public" }
+  );
+
+  return blob.url;
+}
+
+// =============================
+// BUILD CONTEXT (🔥 חכם!)
+// =============================
+function buildContext(session) {
+
+  if (!session || !session.messages.length) return "";
+
+  // ניקח רק 5 הודעות אחרונות
+  const last = session.messages.slice(-5);
+
+  let context = "היסטוריית שיחה:\n";
+
+  last.forEach(m => {
+    context += `שאלה: ${m.q}\nתשובה: ${m.a}\n`;
+  });
+
+  return context;
+}
+
+// =============================
+// GEMINI (עם הקשר!)
+// =============================
+async function askGeminiAudio(buffer, context) {
 
   const base64 = Buffer.from(buffer).toString("base64");
 
@@ -53,7 +103,9 @@ async function askGeminiAudio(buffer) {
             contents: [{
               parts: [
                 {
-                  text: "זה קובץ אודיו של שאלה. תמלל וענה. אם לא הבנת תגיד שלא הבנת ובקש לחזור."
+                  text: `${context}
+זה קובץ אודיו של שאלה. תמלל וענה בהתאם להקשר.
+אם לא הבנת - תגיד שלא הבנת.`
                 },
                 {
                   inlineData: {
@@ -77,66 +129,7 @@ async function askGeminiAudio(buffer) {
     } catch {}
   }
 
-  return "לא הצלחתי להבין, נסו שוב";
-}
-
-// =============================
-// DB
-// =============================
-async function getUser(phone) {
-  try {
-    const file = await get(`users/${phone}.json`);
-    return JSON.parse(await file.text());
-  } catch {
-    return { sessions: [] };
-  }
-}
-
-async function saveUser(phone, data) {
-  await put(`users/${phone}.json`, JSON.stringify(data), {
-    access: "public"
-  });
-}
-
-// =============================
-// HELPERS
-// =============================
-function newSession() {
-  return {
-    name: "שיחה " + new Date().toLocaleTimeString(),
-    messages: []
-  };
-}
-
-function mainMenu() {
-  return `
-tts=ברוכים הבאים למערכת AI
-tts=לצאט חדש הקש 1
-tts=להיסטוריה הקש 2
-read=menu,1,1,1,Number
-`;
-}
-
-function historyMenu(user) {
-
-  if (!user.sessions.length) {
-    return `
-tts=אין שיחות קודמות
-goto=menu
-`;
-  }
-
-  let txt = "tts=בחר שיחה ";
-
-  user.sessions.forEach((s, i) => {
-    txt += `tts=לשיחה ${s.name} הקש ${i + 1} `;
-  });
-
-  txt += `
-read=choice,1,${user.sessions.length},1,Number
-`;
-
-  return txt;
+  return "לא הצלחתי להבין, נסה שוב";
 }
 
 // =============================
@@ -144,101 +137,96 @@ read=choice,1,${user.sessions.length},1,Number
 // =============================
 export default async function handler(req, res) {
 
-  const phone = req.body.ApiPhone || "unknown";
-  const input = req.body;
+  try {
 
-  let user = await getUser(phone);
+    const phone = req.body.ApiPhone || "unknown";
+    const input = req.body;
 
-  // =========================
-  // ENTRY
-  // =========================
-  if (!input.stage) {
-    return res.send(mainMenu());
-  }
+    let user = await getUser(phone);
 
-  // =========================
-  // MENU
-  // =========================
-  if (input.menu == "1") {
-    return res.send(`
-tts=בחרת צאט חדש
-tts=הקלט שאלה לאחר הצליל
-record=question,/recordings,q.wav
+    // =========================
+    // ENTRY
+    // =========================
+    if (!input.stage) {
+      return res.send(`
+tts=ברוכים הבאים
+tts=לצאט חדש הקש 1
+tts=להיסטוריה הקש 2
+read=menu,1,1,1,Number
 `);
-  }
-
-  if (input.menu == "2") {
-    return res.send(historyMenu(user));
-  }
-
-  // =========================
-  // HISTORY SELECT
-  // =========================
-  if (input.choice) {
-
-    const index = parseInt(input.choice) - 1;
-    const session = user.sessions[index];
-
-    if (!session) return res.send("tts=שגיאה");
-
-    let playback = "";
-
-    session.messages.forEach(m => {
-      playback += `tts=${encodeURIComponent(m.q)} `;
-      playback += `tts=${encodeURIComponent(m.a)} `;
-    });
-
-    return res.send(`
-${playback}
-tts=להמשך שיחה הקש 7
-read=cont,1,1,1,Number
-`);
-  }
-
-  // =========================
-  // CONTINUE
-  // =========================
-  if (input.cont == "7") {
-    return res.send(`
-tts=הקלט שאלה להמשך
-record=question,/recordings,q.wav
-`);
-  }
-
-  // =========================
-  // QUESTION
-  // =========================
-  if (input.question) {
-
-    const path = input.question;
-
-    const audio = await fetchRecording(path);
-
-    const answer = await askGeminiAudio(audio);
-
-    let session = user.sessions.at(-1);
-
-    if (!session) {
-      session = newSession();
-      user.sessions.push(session);
     }
 
-    session.messages.push({
-      q: "שאלה מוקלטת",
-      a: answer
-    });
+    // =========================
+    // NEW CHAT
+    // =========================
+    if (input.menu == "1") {
+      return res.send(`
+tts=הקלט שאלה
+record=question,/recordings,q.wav
+`);
+    }
 
-    await saveUser(phone, user);
+    // =========================
+    // HISTORY
+    // =========================
+    if (input.menu == "2") {
 
-    return res.send(`
+      if (!user.sessions.length) {
+        return res.send("tts=אין שיחות");
+      }
+
+      let txt = "tts=בחר שיחה ";
+
+      user.sessions.forEach((s, i) => {
+        txt += `tts=לשיחה ${s.name} הקש ${i + 1} `;
+      });
+
+      txt += `read=choice,1,${user.sessions.length},1,Number`;
+
+      return res.send(txt);
+    }
+
+    // =========================
+    // QUESTION
+    // =========================
+    if (input.question) {
+
+      const audio = await fetchRecording(input.question);
+
+      let session = user.sessions.at(-1);
+
+      if (!session) {
+        session = {
+          name: "שיחה חדשה",
+          messages: []
+        };
+        user.sessions.push(session);
+      }
+
+      const context = buildContext(session);
+
+      const answer = await askGeminiAudio(audio, context);
+
+      session.messages.push({
+        q: "שאלה מוקלטת",
+        a: answer
+      });
+
+      await saveUser(phone, user);
+
+      return res.send(`
 play=/music/wait
 tts=${encodeURIComponent(answer)}
 goto=menu
 `);
-  }
+    }
 
-  // =========================
-  // DEFAULT
-  // =========================
-  return res.send("tts=שגיאה כללית");
+    return res.send("tts=שגיאה");
+
+  } catch (err) {
+
+    console.log(err);
+
+    return res.send("tts=אירעה שגיאה");
+  }
 }
