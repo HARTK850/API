@@ -1,147 +1,169 @@
-// ==========================
-// IVR AI SERVER (VERCEL)
-// ==========================
+// =======================================
+// IVR AI FULL SYSTEM (VERCEL + KV)
+// =======================================
 
-import fs from "fs";
-import path from "path";
+import { kv } from "@vercel/kv";
 
-// ==========================
-// הגדרות
-// ==========================
+// =========================
+// API KEYS (מהסביבה)
+// =========================
 
-const DATA_FILE = "/tmp/data.json";
+const API_KEYS = process.env.GEMINI_KEYS.split(",");
+let keyIndex = 0;
 
-// ==========================
-// עזר: קריאה/שמירה
-// ==========================
+// =========================
+// בחירת מפתח
+// =========================
 
-function loadData() {
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE));
-  } catch {
-    return {};
-  }
+function getNextKey() {
+  const key = API_KEYS[keyIndex];
+  keyIndex = (keyIndex + 1) % API_KEYS.length;
+  return key;
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
-
-// ==========================
-// SpeechRecognition (mock)
-// ==========================
-
-async function speechToText(filePath) {
-  // ⚠️ כאן תחליף לספרייה אמיתית
-  return "שאלה לדוגמה מהמשתמש";
-}
-
-// ==========================
-// Gemini API
-// ==========================
+// =========================
+// קריאה ל-Gemini עם fallback
+// =========================
 
 async function askGemini(question) {
-  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: question }] }]
-    })
-  });
+  for (let i = 0; i < API_KEYS.length; i++) {
+    const key = getNextKey();
 
-  const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "לא נמצאה תשובה";
-}
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: question }] }]
+          })
+        }
+      );
 
-// ==========================
-// יצירת TTS פשוט (ללא API)
-// ==========================
+      const data = await res.json();
 
-function textToSpeech(text) {
-  return `tts=${encodeURIComponent(text)}`;
-}
+      const text =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-// ==========================
-// יצירת שם שיחה
-// ==========================
+      if (text) return text;
 
-function generateSessionName(text) {
-  return text.slice(0, 20);
-}
-
-// ==========================
-// handler ראשי
-// ==========================
-
-export default async function handler(req, res) {
-  const data = loadData();
-
-  const phone = req.body.ApiPhone || "unknown";
-
-  if (!data[phone]) {
-    data[phone] = { sessions: [] };
+    } catch (e) {}
   }
 
+  return "אירעה שגיאה, נסו שוב";
+}
+
+// =========================
+// STT (פשוט - placeholder)
+// =========================
+
+async function speechToText() {
+  return "שאלה מהמשתמש"; // תחליף בהמשך ל-VOSK אם תרצה
+}
+
+// =========================
+// שמירת DB
+// =========================
+
+async function getUser(phone) {
+  return (await kv.get(phone)) || { sessions: [] };
+}
+
+async function saveUser(phone, data) {
+  await kv.set(phone, data);
+}
+
+// =========================
+// יצירת שם שיחה
+// =========================
+
+function createSessionName(text) {
+  return text.slice(0, 15);
+}
+
+// =========================
+// יצירת תפריט היסטוריה
+// =========================
+
+function buildHistoryMenu(sessions) {
+  let txt = "tts=בחר שיחה ";
+
+  sessions.forEach((s, i) => {
+    txt += `tts=לשיחה ${s.name} הקש ${i + 1} `;
+  });
+
+  txt += "read=choice,1,1,1,Number";
+  return txt;
+}
+
+// =========================
+// handler
+// =========================
+
+export default async function handler(req, res) {
+
+  const phone = req.body.ApiPhone || "unknown";
   const input = req.body;
 
-  // ==========================
-  // תפריט ראשי
-  // ==========================
+  let user = await getUser(phone);
 
-  if (!input.question) {
+  // =========================
+  // תפריט ראשי
+  // =========================
+
+  if (!input.step) {
     return res.send(`
-      tts=ברוכים הבאים למערכת AI
+      tts=ברוכים הבאים
+      tts=לצאט חדש הקש 1
+      tts=להיסטוריה הקש 2
       read=menu,1,1,1,Number
       if(menu==1) goto=new
       if(menu==2) goto=history
     `);
   }
 
-  // ==========================
-  // קובץ קול
-  // ==========================
+  // =========================
+  // היסטוריה
+  // =========================
 
-  const filePath = "/tmp/record.wav";
-
-  // ==========================
-  // המרה לטקסט
-  // ==========================
-
-  const text = await speechToText(filePath);
-
-  // ==========================
-  // שליחה ל-AI
-  // ==========================
-
-  const answer = await askGemini(text);
-
-  // ==========================
-  // שמירה
-  // ==========================
-
-  let session = data[phone].sessions.at(-1);
-
-  if (!session) {
-    session = {
-      name: generateSessionName(text),
-      messages: []
-    };
-    data[phone].sessions.push(session);
+  if (input.step === "history") {
+    return res.send(buildHistoryMenu(user.sessions));
   }
 
-  session.messages.push({ q: text, a: answer });
+  // =========================
+  // שאלה חדשה
+  // =========================
 
-  saveData(data);
+  if (input.question) {
 
-  // ==========================
-  // תשובה למערכת
-  // ==========================
+    const text = await speechToText();
+    const answer = await askGemini(text);
 
-  res.send(`
-    play=/music/wait
-    ${textToSpeech(answer)}
-    goto=menu
-  `);
+    let session = user.sessions.at(-1);
+
+    if (!session) {
+      session = {
+        name: createSessionName(text),
+        messages: []
+      };
+      user.sessions.push(session);
+    }
+
+    session.messages.push({ q: text, a: answer });
+
+    await saveUser(phone, user);
+
+    return res.send(`
+      play=/music/wait
+      tts=${encodeURIComponent(answer)}
+      goto=menu
+    `);
+  }
+
+  // =========================
+  // fallback
+  // =========================
+
+  res.send("tts=שגיאה");
 }
