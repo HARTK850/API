@@ -1,42 +1,42 @@
 import { put } from "@vercel/blob";
 
-// ========================
-// ENV
-// ========================
 const KEYS = process.env.GEMINI_KEYS.split(",");
 const TOKEN = process.env.CALL2ALL_TOKEN;
 
 let keyIndex = 0;
 
-function getKey() {
+function nextKey() {
   const key = KEYS[keyIndex];
   keyIndex = (keyIndex + 1) % KEYS.length;
   return key;
 }
 
-// ========================
-// FETCH AUDIO
-// ========================
-async function fetchRecording(path) {
+// ======================
+// RESPONSE BUILDER
+// ======================
+function ivr(lines) {
+  return lines.join("\n");
+}
 
+// ======================
+// FETCH RECORD
+// ======================
+async function getAudio(path) {
   const url = `https://www.call2all.co.il/ym/api/DownloadFile?token=${TOKEN}&path=${path}`;
-
   const res = await fetch(url);
-  if (!res.ok) throw new Error("download failed");
-
   return await res.arrayBuffer();
 }
 
-// ========================
-// GEMINI
-// ========================
-async function askAI(buffer, context) {
+// ======================
+// AI
+// ======================
+async function ask(buffer, context) {
 
   const base64 = Buffer.from(buffer).toString("base64");
 
   for (let i = 0; i < KEYS.length; i++) {
 
-    const key = getKey();
+    const key = nextKey();
 
     try {
 
@@ -48,10 +48,7 @@ async function askAI(buffer, context) {
           body: JSON.stringify({
             contents: [{
               parts: [
-                {
-                  text: `${context}
-זה אודיו של שאלה. תמלל וענה. אם לא ברור - תגיד שלא הבנת.`
-                },
+                { text: context + "\nזה אודיו של שאלה. תמלל וענה." },
                 {
                   inlineData: {
                     mimeType: "audio/wav",
@@ -66,19 +63,20 @@ async function askAI(buffer, context) {
 
       const data = await res.json();
 
-      const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const txt =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (txt) return txt;
 
     } catch {}
   }
 
-  return "לא הבנתי את השאלה";
+  return "לא הבנתי, נסה שוב";
 }
 
-// ========================
-// DB
-// ========================
+// ======================
+// MEMORY
+// ======================
 async function save(phone, data) {
   await put(`users/${phone}.json`, JSON.stringify(data), { access: "public" });
 }
@@ -92,101 +90,100 @@ async function load(phone) {
   }
 }
 
-// ========================
+// ======================
 // CONTEXT
-// ========================
-function context(session) {
-
+// ======================
+function ctx(session) {
   if (!session) return "";
 
-  return session.messages
-    .slice(-5)
-    .map(m => `שאלה: ${m.q}\nתשובה: ${m.a}`)
-    .join("\n");
+  return session.messages.slice(-5).map(m =>
+    `שאלה:${m.q}\nתשובה:${m.a}`
+  ).join("\n");
 }
 
-// ========================
+// ======================
 // MAIN
-// ========================
+// ======================
 export default async function handler(req, res) {
 
-  try {
+  const phone = req.body.ApiPhone || "unknown";
+  const body = req.body;
 
-    const phone = req.body.ApiPhone || "unknown";
-    const user = await load(phone);
+  let user = await load(phone);
 
-    // ======================
-    // ENTRY
-    // ======================
-    if (!req.body.action) {
-      return res.send(`
-go_to_folder=1
-`);
-    }
+  // ======================
+  // ENTRY
+  // ======================
+  if (!body.menu && !body.question && !body.choice) {
 
-    // ======================
-    // MENU ACTION
-    // ======================
-    if (req.body.action === "menu") {
-
-      if (req.body.key === "1") {
-        return res.send(`
-go_to_folder=2
-`);
-      }
-
-      if (req.body.key === "2") {
-        return res.send(`
-go_to_folder=3
-`);
-      }
-    }
-
-    // ======================
-    // RECORD RESULT
-    // ======================
-    if (req.body.record) {
-
-      const audio = await fetchRecording(req.body.record);
-
-      let session = user.sessions.at(-1);
-
-      if (!session) {
-        session = { name: "שיחה", messages: [] };
-        user.sessions.push(session);
-      }
-
-      const ctx = context(session);
-
-      const answer = await askAI(audio, ctx);
-
-      session.messages.push({
-        q: "שאלה",
-        a: answer
-      });
-
-      await save(phone, user);
-
-      return res.send(`
-tts=${encodeURIComponent(answer)}
-go_to_folder=1
-`);
-    }
-
-    // ======================
-    // DEFAULT
-    // ======================
-    return res.send(`
-go_to_folder=1
-`);
-
-  } catch (e) {
-
-    console.log(e);
-
-    return res.send(`
-tts=אירעה שגיאה
-go_to_folder=1
-`);
+    return res.send(ivr([
+      "tts=ברוכים הבאים",
+      "tts=לצאט חדש הקש 1",
+      "tts=להיסטוריה הקש 2",
+      "read=menu,1,1,1,Number"
+    ]));
   }
+
+  // ======================
+  // MENU
+  // ======================
+  if (body.menu == "1") {
+
+    return res.send(ivr([
+      "tts=הקלט שאלה",
+      "record=question,/recordings,q.wav"
+    ]));
+  }
+
+  if (body.menu == "2") {
+
+    if (!user.sessions.length) {
+      return res.send(ivr([
+        "tts=אין שיחות",
+        "goto=menu"
+      ]));
+    }
+
+    let lines = ["tts=בחר שיחה"];
+
+    user.sessions.forEach((s, i) => {
+      lines.push(`tts=לשיחה ${s.name} הקש ${i + 1}`);
+    });
+
+    lines.push(`read=choice,1,${user.sessions.length},1,Number`);
+
+    return res.send(ivr(lines));
+  }
+
+  // ======================
+  // QUESTION
+  // ======================
+  if (body.question) {
+
+    const audio = await getAudio(body.question);
+
+    let session = user.sessions.at(-1);
+
+    if (!session) {
+      session = { name: "שיחה חדשה", messages: [] };
+      user.sessions.push(session);
+    }
+
+    const answer = await ask(audio, ctx(session));
+
+    session.messages.push({
+      q: "שאלה",
+      a: answer
+    });
+
+    await save(phone, user);
+
+    return res.send(ivr([
+      "play=/music/wait",
+      "tts=" + encodeURIComponent(answer),
+      "goto=menu"
+    ]));
+  }
+
+  return res.send("tts=שגיאה");
 }
