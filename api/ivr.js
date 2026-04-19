@@ -1,19 +1,15 @@
 // =======================================
-// IVR AI FULL SYSTEM (VERCEL + KV)
+// IVR AI FULL SYSTEM (BLOB VERSION)
 // =======================================
 
-import { kv } from "@vercel/kv";
+import { put, get } from "@vercel/blob";
 
 // =========================
-// API KEYS (מהסביבה)
+// API KEYS
 // =========================
 
 const API_KEYS = process.env.GEMINI_KEYS.split(",");
 let keyIndex = 0;
-
-// =========================
-// בחירת מפתח
-// =========================
 
 function getNextKey() {
   const key = API_KEYS[keyIndex];
@@ -22,7 +18,7 @@ function getNextKey() {
 }
 
 // =========================
-// קריאה ל-Gemini עם fallback
+// GEMINI
 // =========================
 
 async function askGemini(question) {
@@ -42,36 +38,42 @@ async function askGemini(question) {
       );
 
       const data = await res.json();
-
       const text =
         data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (text) return text;
 
-    } catch (e) {}
+    } catch {}
   }
 
-  return "אירעה שגיאה, נסו שוב";
+  return "שגיאה, נסו שוב";
 }
 
 // =========================
-// STT (פשוט - placeholder)
-// =========================
-
-async function speechToText() {
-  return "שאלה מהמשתמש"; // תחליף בהמשך ל-VOSK אם תרצה
-}
-
-// =========================
-// שמירת DB
+// DB דרך BLOB
 // =========================
 
 async function getUser(phone) {
-  return (await kv.get(phone)) || { sessions: [] };
+  try {
+    const res = await get(`users/${phone}.json`);
+    return JSON.parse(await res.text());
+  } catch {
+    return { sessions: [] };
+  }
 }
 
 async function saveUser(phone, data) {
-  await kv.set(phone, data);
+  await put(`users/${phone}.json`, JSON.stringify(data), {
+    access: "public"
+  });
+}
+
+// =========================
+// STT (placeholder)
+// =========================
+
+async function speechToText() {
+  return "שאלה מהמשתמש";
 }
 
 // =========================
@@ -83,7 +85,7 @@ function createSessionName(text) {
 }
 
 // =========================
-// יצירת תפריט היסטוריה
+// תפריט היסטוריה
 // =========================
 
 function buildHistoryMenu(sessions) {
@@ -98,7 +100,7 @@ function buildHistoryMenu(sessions) {
 }
 
 // =========================
-// handler
+// MAIN HANDLER
 // =========================
 
 export default async function handler(req, res) {
@@ -132,7 +134,7 @@ export default async function handler(req, res) {
   }
 
   // =========================
-  // שאלה חדשה
+  // שאלה
   // =========================
 
   if (input.question) {
@@ -160,10 +162,6 @@ export default async function handler(req, res) {
       goto=menu
     `);
   }
-
-  // =========================
-  // fallback
-  // =========================
 
   res.send("tts=שגיאה");
 }
