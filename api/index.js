@@ -253,16 +253,17 @@ class TextSanitizer {
      * @returns {string} טקסט נקי ובטוח למנוע ה-TTS של ימות המשיח
      */
     static cleanForYemotTTS(text) {
-        if (!text || typeof text !== 'string') {
-            return "שגיאת טקסט. לא התקבל תוכן תקין.";
+        // אם הטקסט ריק או לא מוגדר, נחזיר רווח במקום הודעת שגיאה
+        if (!text || typeof text !== 'string' || text.trim() === "") {
+            return " ";
         }
         
         return text
-            .replace(/\*/g, ' ') // הסרת כוכביות של Markdown
-            .replace(/#/g, ' ')  // הסרת סולמיות
-            .replace(/[\u{1F600}-\u{1F6FF}]/gu, '') // הסרת אימוג'ים
-            .replace(/[.,\-?!:\n\r]/g, ' ') // החלפת סימני פיסוק וירידות שורה ברווחים
-            .replace(/\s+/g, ' ') // צמצום רווחים כפולים שנוצרו לרווח יחיד
+            .replace(/\*/g, ' ') 
+            .replace(/#/g, ' ')  
+            .replace(/[\u{1F600}-\u{1F6FF}]/gu, '') 
+            .replace(/[.,\-?!:\n\r]/g, ' ') 
+            .replace(/\s+/g, ' ') 
             .trim();
     }
 }
@@ -772,11 +773,11 @@ export default async function handler(req, res) {
             }
         }
         
-        // --- מצב 5 (ברירת מחדל): כניסה ראשונית למערכת ללא פרמטרים קודמים ---
+        // --- מצב 5 (ברירת מחדל): כניסה ראשונית למערכת ---
         else {
-            Logger.info("Flow Manager", "First entry to system. Serving main menu greetings.");
-            ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU);
-            ivrBuilder.addReadDigits("", SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE, 1, 1);
+            Logger.info("Flow Manager", "First entry to system. Serving main menu.");
+            // איחוד הקראת התפריט ובקשת ההקשה לפעולה אחת כדי למנוע ניתוק
+            ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE, 1, 1);
         }
 
         // 6. הרכבת השרשור הסופי והחזרתו בצורה בטוחה ללקוח
