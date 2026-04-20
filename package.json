@@ -1,8 +1,16 @@
 {
-  "name": "ivr-ai",
+  "name": "yemot-gemini-ivr",
   "version": "1.0.0",
+  "description": "Yemot HaMashiach IVR integrated with Gemini AI and Vercel Blob",
+  "main": "api/index.js",
   "type": "module",
+  "scripts": {
+    "start": "node api/index.js"
+  },
   "dependencies": {
-    "@vercel/blob": "^0.23.0"
+    "@vercel/blob": "^0.22.1"
+  },
+  "engines": {
+    "node": ">=18.x"
   }
 }
