@@ -291,24 +291,25 @@ class IVRBuilder {
         return this;
     }
 
-    /**
-     * קבלת הקשה ממשתמש
+/**
+     * קבלת הקשה ממשתמש (מתוקן)
      */
     addReadDigits(text, varName, min = 1, max = 1) {
         const cleanText = this.cleanForYemot(text);
-        // שימוש ב-AskNo כדי שלא יבקש "לאישור הקישו 1"
-        this.commands.push(`read=t-${cleanText}=${varName},AskNo,${max},${min},7,Digits,yes,no`);
+        // פרמטר 2 (no): מכריח את המערכת למחוק הקשה קודמת ולא למחזר אותה
+        // פרמטר 6 (No): מבטל את הקראת הספרות ואת השאלה "לאישור הקישו 1" - עובר מיד!
+        this.commands.push(`read=t-${cleanText}=${varName},no,${max},${min},7,No,yes,no`);
         return this;
     }
 
     /**
-     * קבלת הקלטה ממשתמש
+     * קבלת הקלטה ממשתמש (מתוקן)
      */
     addRecord(text, varName, callId) {
         const cleanText = this.cleanForYemot(text);
         const fileName = `q_${callId}`;
-        // פארמטרים: VarName, UseExisting(ריק), Type(record), Folder, FileName, SayRecordMenu(no), SaveHangup(yes), Append(no), Min(1), Max(120)
-        this.commands.push(`read=t-${cleanText}=${varName},,record,/ApiRecords,${fileName},no,yes,no,1,120`);
+        // פרמטר 2 (no): מכריח את המערכת לקבל הקלטה חדשה ולא למחזר
+        this.commands.push(`read=t-${cleanText}=${varName},no,record,/ApiRecords,${fileName},no,yes,no,1,120`);
         return this;
     }
 
@@ -336,26 +337,34 @@ class IVRBuilder {
  * נקודת הכניסה של Vercel Serverless Function
  */
 export default async function handler(req, res) {
-    // מניעת נפילות של שרת, מחזירים תמיד טקסט תקין לימות המשיח
     try {
-        // המרת הפרמטרים למערך נוח גם מ-GET וגם מ-POST
-        const urlParams = new URL(req.url, `https://${req.headers.host}`).searchParams;
-        const query = Object.fromEntries(urlParams.entries());
-        
+        // --- תיקון שאיבת הפרמטרים: תומך בצורה מלאה ב-POST ו-GET ---
+        let rawQuery = {};
+        if (req.method === 'POST') {
+            // תמיכה בנתונים שמגיעים כ- URL Encoded
+            rawQuery = typeof req.body === 'string' ? Object.fromEntries(new URLSearchParams(req.body)) : (req.body || {});
+        }
+        const urlQuery = Object.fromEntries(new URL(req.url, `https://${req.headers.host}`).searchParams);
+        const query = { ...urlQuery, ...rawQuery };
+
+        // פונקציית עזר: אם ימות שלחה את אותו משתנה פעמיים (מערך), ניקח את האחרון והמעודכן ביותר
+        const getParam = (key) => Array.isArray(query[key]) ? query[key][query[key].length - 1] : query[key];
+
         // שליפת נתונים בסיסיים שימות תמיד שולחת
-        const phone = query.ApiPhone || query.ApiEnterID || 'unknown';
-        const callId = query.ApiCallId || `sim_${Date.now()}`;
+        const phone = getParam('ApiPhone') || getParam('ApiEnterID') || 'unknown';
+        const callId = getParam('ApiCallId') || `sim_${Date.now()}`;
         
         // שליפת משתני תזרים שהגדרנו במערכת
-        const menuChoice = query.MenuChoice;
-        const userAudioStatus = query.UserAudio;
-        const historyChoice = query.HistoryChoice;
-        const actionChoice = query.ActionChoice;
+        const menuChoice = getParam('MenuChoice');
+        const userAudioStatus = getParam('UserAudio');
+        const historyChoice = getParam('HistoryChoice');
+        const actionChoice = getParam('ActionChoice');
 
         console.log(`[Incoming Request] Phone: ${phone}, CallID: ${callId}`);
         console.log(`[State Variables] Menu: ${menuChoice}, Audio: ${userAudioStatus}, Hist: ${historyChoice}, Action: ${actionChoice}`);
 
         const ivr = new IVRBuilder();
+        // ... (מכאן והלאה שאר הקוד נשאר בדיוק אותו דבר)
 
         // --------------------------------------------------------------------
         // מצב 1: התקבל קובץ אודיו (שאלת המשתמש) -> עיבוד ב-Gemini
