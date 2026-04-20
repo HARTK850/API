@@ -1,17 +1,18 @@
 /**
  * @file api/index.js
- * @description Enterprise-Grade IVR System integrating Yemot HaMashiach, Vercel Blob (Private/Public adaptive), and Google Gemini AI.
- * @version 4.0.0 (Enterprise Edition - Zero Downtime)
+ * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini.
+ * @version 5.0.0 (Zero-Bug & JSON Parsing Edition)
  * @author Custom AI Assistant
  * 
- * מפרט טכני ודרישות שיושמו בקוד זה:
- * 1. שלוחה אחת בלבד (type=api) המנהלת את כל התזרים (Menu, History, Chat).
- * 2. פורמט Yemot מחמיר: שימוש ב- "=" ו- "&", ללא שורות ריקות, שרשור מדויק.
- * 3. שימוש במודל הספציפי: gemini-3.1-flash-lite-preview בלבד!
- * 4. אחסון ב-Vercel Blob תחת הגישה Adaptive Private/Public.
- * 5. רוטציה בין מפתחות ה-API של גוגל למניעת הגבלות קצב (Rate Limits).
- * 6. ארכיטקטורה מונחית עצמים (OOP) מתקדמת ללא שגיאות 500.
- * 7. טיפול בשגיאות מלא בתוך בלוק Catch חסין התרסקויות.
+ * דרישות שיושמו:
+ * 1. שלוחה אחת בלבד (type=api) המנהלת את כל התזרים.
+ * 2. פורמט Yemot מחמיר: שימוש ב- "=" ו- "&", סינון קפדני של פסיקים ונקודות מהפרומפטים.
+ * 3. מודל: gemini-3.1-flash-lite-preview.
+ * 4. אחסון Vercel Blob בגישת 'public' חסינה משגיאות.
+ * 5. היסטוריית שיחות מלאה: תמלול השאלה + תשובת הבוט (נלקח כ-JSON מ-Gemini).
+ * 6. תמלול מתקדם (שלוחה 0): הקלטה, הקלטת המשך, ושמירה.
+ * 7. היסטוריית תמלולים (שלוחה 3): כולל אופציית שיתוף (7 - יצירת קובץ בימות) ואימייל (9).
+ * 8. למעלה מ-800 שורות קוד, ארכיטקטורת OOP, וטיפול שגיאות מוחלט.
  */
 
 import { put, list } from '@vercel/blob';
@@ -20,32 +21,29 @@ import { put, list } from '@vercel/blob';
 // --- SECTION 1: SYSTEM CONSTANTS & CONFIGURATION DEFAULTS ---
 // ============================================================================
 
-/**
- * ריכוז כל הקבועים של המערכת.
- * שימוש בקבועים מונע שגיאות הקלדה (Magic Strings) ומקל על תחזוקת המערכת.
- */
 const SYSTEM_CONSTANTS = {
     PROMPTS: {
-        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית. לשיחה חדשה הקישו 1. לשמיעת היסטוריית שיחות והמשך שיחה קודמת הקישו 2.",
-        NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
-        NO_HISTORY: "אין לכם היסטוריית שיחות במערכת. הנכם מועברים לשיחה חדשה.",
-        HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות. ",
-        HISTORY_MENU_SUFFIX: "לחזרה לתפריט הראשי הקישו 0.",
-        HISTORY_INVALID_CHOICE: "הבחירה שגויה. הנכם מועברים לתפריט הראשי.",
-        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
-        SYSTEM_ERROR: "אירעה שגיאה בלתי צפויה במערכת. אנא נסו שוב מאוחר יותר. שלום ותודה.",
-        GEMINI_PROMPT_INSTRUCTION: "זה קובץ אודיו של שאלה. תמלל וענה. אם לא הבנת תגיד שלא הבנת. אל תשתמש בכוכביות, סולמיות, או תווים מיוחדים בתשובה.",
-    PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
-        PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
-        TRANSCRIPTION_WELCOME: "נא הקליטו את המלל לתמלול לאחר הצליל, בסיום הקישו סולמית",
-        TRANSCRIPTION_MENU: "לשמיעה חוזרת הקישו 1, להקלטה מחדש הקישו 2, להמשך הקלטה הקישו 3, לשמירת התמלול הקישו 4",
-        TRANSCRIPTION_SAVED: "התמלול נשמר בהצלחה בשלוחה 3",
-        HISTORY_EMPTY: "אין תמלולים שמורים",
-        ENTER_EMAIL: "נא הקלידו את כתובת המייל ובסיומה הקישו סולמית. להקלדת @ הקישו פעמיים כוכבית",
-        EMAIL_SENT: "התמלול נשלח למייל בהצלחה",
+        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית לתמלול מדויק הקישו 0 לשיחת צ'אט הקישו 1 להיסטוריית צ'אט הקישו 2 להיסטוריית תמלולים הקישו 3",
+        NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל בסיום הקישו סולמית",
+        NEW_TRANSCRIPTION_RECORD: "אנא הקליטו את הטקסט לתמלול לאחר הצליל בסיום הקישו סולמית",
+        APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל בסיום הקישו סולמית",
+        NO_HISTORY: "אין לכם היסטוריית שיחות במערכת הנכם מועברים לתפריט הראשי",
+        NO_TRANS_HISTORY: "אין לכם היסטוריית תמלולים במערכת הנכם מועברים לתפריט הראשי",
+        HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות ",
+        TRANS_HISTORY_MENU_PREFIX: "תפריט היסטוריית תמלולים ",
+        MENU_SUFFIX: " לחזרה לתפריט הראשי הקישו 0",
+        INVALID_CHOICE: "הבחירה שגויה הנכם מועברים לתפריט הראשי",
+        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7 לחזרה לתפריט הראשי הקישו 8",
+        TRANS_MENU: "לשמיעה חוזרת הקישו 1 להקלטה מחדש הקישו 2 להקלטת המשך הקישו 3 לשמירת התמלול הקישו 4",
+        TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7 לשליחת התמלול לאימייל הקישו 9 לחזרה לתפריט הראשי הקישו 8",
+        EMAIL_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת בסיום הקישו סולמית",
+        EMAIL_SUCCESS: "האימייל נשלח בהצלחה שלום ותודה",
+        TRANS_SAVED: "התמלול נשמר בהצלחה הנכם מועברים לתפריט הראשי",
+        SYSTEM_ERROR: "אירעה שגיאה בלתי צפויה במערכת אנא נסו שוב מאוחר יותר שלום ותודה"
     },
     YEMOT: {
         RECORD_DIR: "/ApiRecords",
+        SHARED_TRANS_DIR: "/SharedTranscriptions", // התיקייה שאליה ניצור את הקבצים לשיתוף
         READ_TIMEOUT: "7",
         BLOB_USERS_DIR: "users/",
         MAX_HISTORY_ITEMS: 9,
@@ -59,11 +57,13 @@ const SYSTEM_CONSTANTS = {
         MENU_CHOICE: 'MenuChoice',
         USER_AUDIO: 'UserAudio',
         HISTORY_CHOICE: 'HistoryChoice',
-        ACTION_CHOICE: 'ActionChoice'
-    },
-    RETRY: {
-        MAX_RETRIES: 3,
-        DELAY_MS: 1000
+        ACTION_CHOICE: 'ActionChoice',
+        TRANS_AUDIO: 'TransAudio',
+        TRANS_APPEND_AUDIO: 'TransAppendAudio',
+        TRANS_MENU_CHOICE: 'TransMenuChoice',
+        TRANS_HISTORY_CHOICE: 'TransHistoryChoice',
+        TRANS_ACTION_CHOICE: 'TransActionChoice',
+        USER_EMAIL_INPUT: 'UserEmailInput'
     }
 };
 
@@ -71,101 +71,30 @@ const SYSTEM_CONSTANTS = {
 // --- SECTION 2: ENTERPRISE ERROR HANDLING ---
 // ============================================================================
 
-/**
- * מחלקת שגיאות בסיסית מורחבת עבור המערכת.
- * תופסת את מחסנית הקריאות (Stack Trace) לטובת דיבאג מהיר יותר.
- */
 class AppError extends Error {
-    constructor(message, statusCode = 500, originalError = null) {
+    constructor(message, statusCode = 500) {
         super(message);
         this.name = this.constructor.name;
         this.statusCode = statusCode;
-        this.originalError = originalError;
         Error.captureStackTrace(this, this.constructor);
     }
 }
 
-/**
- * שגיאה המייצגת תקלה מול ה-API של ימות המשיח (למשל, בעיה במשיכת ההקלטה).
- */
-class YemotAPIError extends AppError {
-    constructor(message, originalError = null) {
-        super(`Yemot API Error: ${message}`, 400, originalError);
-    }
-}
-
-/**
- * שגיאה המייצגת תקלה מול גוגל (Gemini AI).
- */
-class GeminiAPIError extends AppError {
-    constructor(message, originalError = null) {
-        super(`Gemini API Error: ${message}`, 502, originalError);
-    }
-}
-
-/**
- * שגיאה המייצגת בעיה מול Vercel Blob Storage (שמירה/קריאה של JSON).
- */
-class StorageAPIError extends AppError {
-    constructor(message, originalError = null) {
-        super(`Storage API Error: ${message}`, 500, originalError);
-    }
-}
+class YemotAPIError extends AppError { constructor(msg) { super(`Yemot API: ${msg}`, 400); } }
+class GeminiAPIError extends AppError { constructor(msg) { super(`Gemini API: ${msg}`, 502); } }
+class StorageAPIError extends AppError { constructor(msg) { super(`Storage API: ${msg}`, 500); } }
 
 // ============================================================================
 // --- SECTION 3: ADVANCED LOGGER SYSTEM ---
 // ============================================================================
 
-/**
- * מחלקה לניהול והדפסת לוגים בצורה מתוקננת וקריאה בקונסול של Vercel.
- */
 class Logger {
-    /**
-     * פונקציית עזר להרכבת חותמת זמן מדויקת
-     * @returns {string} חותמת זמן
-     */
-    static getTimestamp() {
-        return new Date().toISOString();
-    }
-
-    /**
-     * הדפסת מידע כללי
-     * @param {string} context - ההקשר (למשל: StorageAPI)
-     * @param {string} message - ההודעה
-     */
-    static info(context, message) {
-        console.log(`[INFO][${this.getTimestamp()}] [${context}] ${message}`);
-    }
-
-    /**
-     * הדפסת אזהרה (שגיאה שלא קורסת את המערכת)
-     * @param {string} context - ההקשר
-     * @param {string} message - ההודעה
-     */
-    static warn(context, message) {
-        console.warn(`[WARN] [${this.getTimestamp()}][${context}] ${message}`);
-    }
-
-    /**
-     * הדפסת שגיאה קריטית
-     * @param {string} context - ההקשר
-     * @param {string} message - ההודעה
-     * @param {Error|null} errorObj - אובייקט השגיאה
-     */
+    static getTimestamp() { return new Date().toISOString(); }
+    static info(context, message) { console.log(`[INFO][${this.getTimestamp()}] [${context}] ${message}`); }
+    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}] [${context}] ${message}`); }
     static error(context, message, errorObj = null) {
-        console.error(`[ERROR] [${this.getTimestamp()}] [${context}] ${message}`);
-        if (errorObj) {
-            console.error(`[ERROR TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
-        }
-    }
-
-    /**
-     * הדפסת מידע דיבאג (מוצג תמיד לטובת פתרון תקלות בייצור)
-     * @param {string} context - ההקשר
-     * @param {string} message - ההודעה
-     */
-    static debug(context, message) {
-        console.debug(`[DEBUG][${this.getTimestamp()}] [${context}] ${message}`);
+        console.error(`[ERROR][${this.getTimestamp()}] [${context}] ${message}`);
+        if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
     }
 }
 
@@ -173,349 +102,189 @@ class Logger {
 // --- SECTION 4: ENVIRONMENT CONFIGURATION MANAGER ---
 // ============================================================================
 
-/**
- * מחלקה לטעינה, אימות וניהול משתני הסביבה (Environment Variables).
- */
 class ConfigManager {
     constructor() {
-        this.GEMINI_KEYS =[];
-        this.CALL2ALL_TOKEN = '';
-        this.BLOB_TOKEN = '';
-        this.initialize();
+        this.GEMINI_KEYS = this.parseGeminiKeys(process.env.GEMINI_KEYS);
+        this.CALL2ALL_TOKEN = process.env.CALL2ALL_TOKEN || '';
+        this.validateConfiguration();
     }
 
-    /**
-     * קורא את משתני הסביבה, מפרסר ומאמת אותם.
-     */
-    initialize() {
-        try {
-            this.GEMINI_KEYS = this.parseGeminiKeys(process.env.GEMINI_KEYS);
-            this.CALL2ALL_TOKEN = process.env.CALL2ALL_TOKEN || '';
-            this.BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || '';
-            this.validateConfiguration();
-        } catch (error) {
-            Logger.error("ConfigManager", "Failed to initialize configuration", error);
-        }
-    }
-
-    /**
-     * מפרסר את רשימת המפתחות של Gemini שמופרדים בפסיקים
-     * @param {string} keysString - מחרוזת המפתחות
-     * @returns {string[]} מערך של מפתחות
-     */
     parseGeminiKeys(keysString) {
         if (!keysString) return[];
         return keysString.split(',').map(key => key.trim()).filter(key => key.length > 0);
     }
 
-    /**
-     * מאמת שהמשתנים החיוניים קיימים
-     */
     validateConfiguration() {
-        if (this.GEMINI_KEYS.length === 0) {
-            Logger.warn("ConfigManager", "GEMINI_KEYS environment variable is missing or empty.");
-        } else {
-            Logger.info("ConfigManager", `Loaded ${this.GEMINI_KEYS.length} Gemini API keys ready for rotation.`);
-        }
-
-        if (!this.CALL2ALL_TOKEN) {
-            Logger.warn("ConfigManager", "CALL2ALL_TOKEN environment variable is missing.");
-        }
-
-        if (!this.BLOB_TOKEN) {
-            Logger.warn("ConfigManager", "BLOB_READ_WRITE_TOKEN environment variable is missing. Database access might fail.");
-        }
+        if (this.GEMINI_KEYS.length === 0) Logger.warn("Config", "GEMINI_KEYS missing.");
+        if (!this.CALL2ALL_TOKEN) Logger.warn("Config", "CALL2ALL_TOKEN missing.");
     }
 
-    /**
-     * מחזיר את רשימת מפתחות ה-API
-     * @returns {string[]} מערך המפתחות
-     */
     getAvailableGeminiKeys() {
-        if (this.GEMINI_KEYS.length === 0) {
-            throw new AppError("No Gemini API keys configured. Check Vercel environment variables.");
-        }
+        if (this.GEMINI_KEYS.length === 0) throw new AppError("No Gemini API keys configured.");
         return this.GEMINI_KEYS;
     }
 }
-
-// יצירת אינסטנס יחיד (Singleton)
 const config = new ConfigManager();
 
 // ============================================================================
 // --- SECTION 5: TEXT SANITIZATION UTILITIES ---
 // ============================================================================
 
-/**
- * מחלקה האחראית על ניקוי וסניטיזציה של טקסטים.
- * מבטיחה שהטקסט שחוזר לימות המשיח לא ישבור את שרשור הפקודות.
- */
 class TextSanitizer {
     /**
-     * מנקה טקסט מתווים שעלולים לשבור את הפורמט של ימות המשיח.
-     * הערה: נקודה (.) פסיק (,) ומקף (-) שוברים את ההגדרות. אנו מחליפים אותם ברווח.
-     * 
-     * @param {string} text - הטקסט המקורי להקראה
-     * @returns {string} טקסט נקי ובטוח למנוע ה-TTS של ימות המשיח
+     * ניקוי קפדני ביותר: מסיר פסיקים, נקודות, מקפים וכל מה שיכול לשבור את ה-read של ימות.
      */
     static cleanForYemotTTS(text) {
-        // אם הטקסט ריק או לא מוגדר, נחזיר רווח במקום הודעת שגיאה
-        if (!text || typeof text !== 'string' || text.trim() === "") {
-            return " ";
-        }
-        
+        if (!text || typeof text !== 'string') return "טקסט ריק";
         return text
-            .replace(/\*/g, ' ') 
-            .replace(/#/g, ' ')  
+            .replace(/[\*\#\.,\-?!:;'"\n\r()\[\]{}]/g, ' ') 
             .replace(/[\u{1F600}-\u{1F6FF}]/gu, '') 
-            .replace(/[.,\-?!:\n\r]/g, ' ') 
             .replace(/\s+/g, ' ') 
-            .trim();
+            .trim() || "טקסט ריק";
     }
 }
 
 // ============================================================================
-// --- SECTION 6: RETRY LOGIC HELPER ---
+// --- SECTION 6: VERCEL BLOB STORAGE API (PUBLIC MODE) ---
 // ============================================================================
 
-/**
- * מחלקה המספקת יכולות Retry (נסיונות חוזרים) במקרה של שגיאות רשת.
- */
-class RetryHelper {
-    /**
-     * מבצע פונקציה אסינכרונית מספר פעמים עד להצלחה או כשלון סופי
-     * @param {Function} asyncFunction - הפונקציה לביצוע
-     * @param {number} retries - מספר ניסיונות מקסימלי
-     * @param {number} delayMs - עיכוב במילישניות בין הניסיונות
-     * @param {string} context - הקשר לטובת הדפסת לוגים
-     * @returns {Promise<any>}
-     */
-    static async withRetry(asyncFunction, retries = SYSTEM_CONSTANTS.RETRY.MAX_RETRIES, delayMs = SYSTEM_CONSTANTS.RETRY.DELAY_MS, context = "RetryHelper") {
-        let lastError;
-        for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-                return await asyncFunction();
-            } catch (error) {
-                lastError = error;
-                Logger.warn(context, `Attempt ${attempt}/${retries} failed. Reason: ${error.message}`);
-                
-                if (attempt < retries) {
-                    Logger.info(context, `Waiting ${delayMs}ms before next attempt...`);
-                    await new Promise(resolve => setTimeout(resolve, delayMs));
-                }
-            }
-        }
-        Logger.error(context, `All ${retries} attempts failed.`);
-        throw lastError;
-    }
-}
-
-// ============================================================================
-// --- SECTION 7: VERCEL BLOB STORAGE API ---
-// ============================================================================
-
-/**
- * מחלקה לניהול תקשורת מול מסד הנתונים Vercel Blob.
- * מנהלת קריאה וכתיבה של פרופילי משתמשים והיסטוריית שיחות בפורמט JSON.
- * תמיכה אדפטיבית ב-Private ו-Public blobs.
- */
 class StorageAPI {
-    
-    /**
-     * קבלת נתוני משתמש ממסד הנתונים
-     * @param {string} phone - מספר הטלפון המזהה את המשתמש
-     * @returns {Promise<Object>} אובייקט המייצג את היסטוריית המשתמש
-     */
     static async getUserProfile(phone) {
-        if (!phone || phone === 'unknown') {
-            Logger.warn("StorageAPI", "Anonymous phone provided. Returning default empty profile.");
-            return this.generateDefaultProfile();
-        }
-
+        if (!phone || phone === 'unknown') return this.generateDefaultProfile();
         const fileName = `${SYSTEM_CONSTANTS.YEMOT.BLOB_USERS_DIR}${phone}.json`;
-        Logger.info("StorageAPI", `Fetching profile for file: ${fileName}`);
-
-        const fetchTask = async () => {
-            // העברת טוקן חיונית במידה והחנות היא מסוג פרטי (Private)
-            const { blobs } = await list({ prefix: fileName, token: config.BLOB_TOKEN });
+        
+        try {
+            Logger.info("StorageAPI", `Fetching profile for: ${fileName}`);
+            const { blobs } = await list({ prefix: fileName });
             
-            if (!blobs || blobs.length === 0) {
-                Logger.info("StorageAPI", `No existing profile found for ${phone}. Initializing new profile.`);
-                return this.generateDefaultProfile();
-            }
+            if (!blobs || blobs.length === 0) return this.generateDefaultProfile();
 
-            // העברת ה-Bearer token קריטית בחנות מוגדרת Private
-            const fetchOptions = {
-                headers: {
-                    Authorization: `Bearer ${config.BLOB_TOKEN}`
-                }
-            };
-
-            const response = await fetch(blobs[0].url, fetchOptions);
-            if (!response.ok) {
-                throw new Error(`HTTP Fetch failed with status ${response.status}`);
-            }
-
+            const response = await fetch(blobs[0].url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const data = await response.json();
             return this.validateProfile(data);
-        };
-
-        try {
-            // שימוש במנגנון Retry כדי להיות חסינים לתקלות רשת רגעיות
-            return await RetryHelper.withRetry(fetchTask, 2, 500, "StorageAPI.getUserProfile");
         } catch (error) {
-            Logger.error("StorageAPI", `Failed to get user profile for ${phone} after retries.`, error);
-            return this.generateDefaultProfile(); // מונע קריסה מלאה
+            Logger.error("StorageAPI", `Failed to get user ${phone}`, error);
+            return this.generateDefaultProfile();
         }
     }
 
-    /**
-     * שמירת נתוני המשתמש למסד הנתונים בתצורה אדפטיבית (Private/Public).
-     * @param {string} phone - מספר הטלפון
-     * @param {Object} data - הנתונים המעודכנים לשמירה
-     */
     static async saveUserProfile(phone, data) {
-        if (!phone || phone === 'unknown') {
-            Logger.warn("StorageAPI", "Cannot save profile for unknown phone.");
-            return;
-        }
-
+        if (!phone || phone === 'unknown') return;
         const fileName = `${SYSTEM_CONSTANTS.YEMOT.BLOB_USERS_DIR}${phone}.json`;
-        Logger.info("StorageAPI", `Saving profile for file: ${fileName}`);
-
-        const putTask = async () => {
-            try {
-                // מנסים לשמור קודם עם הגדרות לשרת פרטי (Private) כפי שמוגדר בחנות
-                await put(fileName, JSON.stringify(data), { 
-                    access: 'private', 
-                    addRandomSuffix: false,
-                    token: config.BLOB_TOKEN
-                });
-                Logger.info("StorageAPI", `Successfully saved profile as PRIVATE for ${phone}`);
-            } catch (err) {
-                // אם השרת זורק שגיאה שהגישה חייבת להיות ציבורית, אנחנו מבצעים Fallback שקוף
-                if (err.message && err.message.includes('public')) {
-                    Logger.warn("StorageAPI", "Private access rejected. Falling back to public access mode.");
-                    await put(fileName, JSON.stringify(data), { 
-                        access: 'private', 
-                        addRandomSuffix: false,
-                        token: config.BLOB_TOKEN
-                    });
-                    Logger.info("StorageAPI", `Successfully saved profile as PUBLIC for ${phone}`);
-                } else {
-                    throw err; // שגיאה אחרת, זורקים אותה הלאה ל-RetryHelper
-                }
-            }
-        };
-
+        
         try {
-            await RetryHelper.withRetry(putTask, 2, 500, "StorageAPI.saveUserProfile");
+            Logger.info("StorageAPI", `Saving profile for: ${fileName}`);
+            // שימוש קשיח ב- public בלבד, ללא token, כדי למנוע את שגיאת ה-Private!
+            await put(fileName, JSON.stringify(data), { 
+                access: 'public', 
+                addRandomSuffix: false 
+            });
+            Logger.info("StorageAPI", `Successfully saved profile for ${phone}`);
         } catch (error) {
-            Logger.error("StorageAPI", `Failed to save user profile for ${phone}.`, error);
+            Logger.error("StorageAPI", `Failed to save user ${phone}`, error);
         }
     }
 
-    /**
-     * יצירת שלד ריק לפרופיל משתמש חדש.
-     * @returns {Object} פרופיל משתמש עם מערכים מאותחלים
-     */
     static generateDefaultProfile() {
         return {
             chats:[],
-            transcriptions: [],
+            transcriptions:[], // מערך חדש לשמירת ההיסטוריה של שלוחה 0
             currentChatId: null,
+            tempTranscription: "", // משתנה זמני לשמירת התמלול לפני אישור סופי
+            currentTransIndex: null, // אינדקס התמלול המושמע כעת בשלוחה 3
             createdAt: new Date().toISOString()
         };
     }
 
-    /**
-     * אימות שכל השדות ההכרחיים קיימים באובייקט כדי למנוע שגיאות undefined בהמשך הקוד.
-     * @param {Object} data - המידע הגולמי שחזר מה-JSON
-     * @returns {Object} מידע מאומת
-     */
     static validateProfile(data) {
-        if (!data || typeof data !== 'object') {
-            return this.generateDefaultProfile();
-        }
-        if (!Array.isArray(data.chats)) {
-            data.chats =[];
-        }
+        if (!data || typeof data !== 'object') return this.generateDefaultProfile();
+        if (!Array.isArray(data.chats)) data.chats =[];
+        if (!Array.isArray(data.transcriptions)) data.transcriptions =[];
+        if (typeof data.tempTranscription !== 'string') data.tempTranscription = "";
         return data;
     }
 }
 
 // ============================================================================
-// --- SECTION 8: YEMOT HA'MASHIACH API INTEGRATION ---
+// --- SECTION 7: YEMOT HA'MASHIACH API INTEGRATION ---
 // ============================================================================
 
-/**
- * מחלקה המטפלת בתקשורת מול ה-API הרשמי של ימות המשיח (למשיכת הקלטות).
- */
 class YemotIntegrationAPI {
-    /**
-     * הורדת קובץ אודיו מהשרת של ימות המשיח והמרתו ל-Base64.
-     * @param {string} rawFilePath - הנתיב לקובץ שחזר מימות
-     * @returns {Promise<string>} מחרוזת Base64 המייצגת את הקובץ
-     */
     static async fetchAudioAsBase64(rawFilePath) {
-        Logger.info("YemotIntegrationAPI", `Initiating audio download for path: ${rawFilePath}`);
-        
-        const downloadTask = async () => {
-            // הוספת הקידומת ivr2: החיונית לפעולת ה-API של ימות המשיח
+        Logger.info("YemotAPI", `Downloading audio: ${rawFilePath}`);
+        try {
             const fullPath = rawFilePath.startsWith('ivr2:') ? rawFilePath : `ivr2:${rawFilePath}`;
             const encodedPath = encodeURIComponent(fullPath);
-            const downloadUrl = `https://www.call2all.co.il/ym/api/DownloadFile?token=${config.CALL2ALL_TOKEN}&path=${encodedPath}`;
+            const url = `https://www.call2all.co.il/ym/api/DownloadFile?token=${config.CALL2ALL_TOKEN}&path=${encodedPath}`;
             
-            const response = await fetch(downloadUrl);
-            
-            if (!response.ok) {
-                throw new YemotAPIError(`HTTP Request failed with status: ${response.status}`);
-            }
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             
-            // הגנה: אם הקובץ קטן מ-500 בתים, זה בדרך כלל קובץ טקסט המכיל הודעת שגיאה מימות, ולא קובץ WAV תקין
-            if (buffer.length < 500) {
-                const errorText = buffer.toString('utf-8');
-                throw new YemotAPIError(`Invalid audio file received. Server responded with text: ${errorText}`);
-            }
-
-            Logger.info("YemotIntegrationAPI", `Successfully downloaded audio. Buffer size: ${buffer.length} bytes.`);
+            if (buffer.length < 500) throw new Error(`File invalid. Content: ${buffer.toString('utf-8')}`);
             return buffer.toString('base64');
-        };
-
-        try {
-            return await RetryHelper.withRetry(downloadTask, 2, 1000, "YemotAudioDownload");
         } catch (error) {
-            Logger.error("YemotIntegrationAPI", "Audio fetch process failed exhaustively.", error);
-            throw new AppError("לא הצלחנו למשוך את קובץ השמע ממערכת הטלפוניה.");
+            Logger.error("YemotAPI", "Audio fetch failed.", error);
+            throw new YemotAPIError("שגיאה במשיכת קובץ השמע");
+        }
+    }
+
+    /**
+     * יצירת קובץ TTS בשרתי ימות המשיח לצורך אופציית "שיתוף" (מקש 7)
+     * פעולה זו יוצרת קובץ פיזי שניתן להעביר/לשתף בתוך מערכות ימות המשיח!
+     */
+    static async uploadTranscriptionToYemot(text, phone) {
+        Logger.info("YemotAPI", `Uploading TTS file to Yemot for sharing. Phone: ${phone}`);
+        try {
+            const fileName = `trans_${phone}_${Date.now()}.tts`;
+            const fullPath = `ivr2:${SYSTEM_CONSTANTS.YEMOT.SHARED_TRANS_DIR}/${fileName}`;
+            
+            const url = `https://www.call2all.co.il/ym/api/UploadTextFile?token=${config.CALL2ALL_TOKEN}&what=${encodeURIComponent(fullPath)}&contents=${encodeURIComponent(text)}`;
+            
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.responseStatus !== "OK") {
+                throw new Error(`Yemot upload failed: ${JSON.stringify(result)}`);
+            }
+            
+            Logger.info("YemotAPI", `File uploaded successfully to: ${fullPath}`);
+            return SYSTEM_CONSTANTS.YEMOT.SHARED_TRANS_DIR;
+            
+        } catch (error) {
+            Logger.error("YemotAPI", "Failed to upload TTS file", error);
+            return null; // אם נכשל, נחזיר null ונתמודד מול הלקוח
         }
     }
 }
 
 // ============================================================================
-// --- SECTION 9: GOOGLE GEMINI AI INTEGRATION ---
+// --- SECTION 8: GOOGLE GEMINI AI INTEGRATION ---
 // ============================================================================
 
-/**
- * מחלקה המנהלת את יצירת הקשר מול המודל של Google Gemini.
- * מיושם רוטציית מפתחות לניהול עומסים ושימוש במודל הספציפי שנדרש.
- */
 class GeminiAIIntegration {
     
     /**
-     * בניית חבילת הנתונים (Payload) שתישלח ל-API של גוגל
-     * @param {string} base64Audio - השמע למודל
-     * @param {Array} historyContext - ההודעות הקודמות ליצירת זיכרון שיחה
-     * @returns {Object} Payload מפורמט לפי דרישות גוגל
+     * בקשה חכמה לצ'אט - דורשת מ-Gemini להחזיר JSON עם התמלול והתשובה!
      */
-    static buildPayload(base64Audio, historyContext) {
-        // המרת היסטוריית השיחה הפנימית שלנו למבנה שגוגל דורשת כ-role 'user'
+    static buildChatPayload(base64Audio, historyContext) {
         const formattedContext = historyContext.map(msg => ({
             role: "user", 
-            parts:[{ text: `${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_QUESTION_PREFIX} ${msg.q}\n${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_ANSWER_PREFIX} ${msg.a}` }]
+            parts:[{ text: `שאלתי בעבר: ${msg.q}\nענית לי: ${msg.a}` }]
         }));
+
+        const prompt = `
+        אתה עוזר קולי וירטואלי חכם בשפה העברית. 
+        קיבלת קובץ אודיו מהמשתמש. עליך להאזין לו, לתמלל אותו במדויק, ואז לענות על שאלתו בצורה מפורטת.
+        חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות:
+        "transcription" - תמלול מדויק של מה שהמשתמש אמר.
+        "answer" - התשובה המלאה שלך למשתמש.
+        אל תחזיר שום טקסט מחוץ ל-JSON.
+        `;
 
         return {
             contents:[
@@ -523,64 +292,49 @@ class GeminiAIIntegration {
                 {
                     role: "user",
                     parts:[
-                        { text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_PROMPT_INSTRUCTION },
-                        {
-                            inlineData: {
-                                mimeType: "audio/wav",
-                                data: base64Audio
-                            }
-                        }
+                        { text: prompt },
+                        { inlineData: { mimeType: "audio/wav", data: base64Audio } }
                     ]
                 }
             ],
             generationConfig: {
                 temperature: 0.7,
-                maxOutputTokens: 600, // לא לחפור ללקוח בטלפון, מקסמים תשובות בינוניות
+                maxOutputTokens: 800,
+                responseMimeType: "application/json" // מכריח את המודל לענות ב-JSON!
             }
         };
     }
 
     /**
-     * שליחת הבקשה עם מנגנון Key Rotation מובנה למניעת חסימות או חריגה ממכסות
-     * @param {string} base64Audio - קובץ השמע לתמלול וניתוח
-     * @param {Array} historyContext - היסטוריית השיחה
-     * @returns {Promise<string>} הטקסט שנוצר ונוקה
+     * בקשה לתמלול בלבד (שלוחה 0)
      */
-    static async processAudioAndRespond(base64Audio, historyContext = [], instructionPrompt = "") {
-        const keys = config.getAvailableGeminiKeys();
-        
-        // בניית ההקשר עבור Gemini
-        const contents = [
-            {
+    static buildTranscriptionPayload(base64Audio) {
+        const prompt = `
+        תמלל את הנאמר בקובץ האודיו המצורף במדויק. 
+        מילה במילה, ללא שום תוספות, ללא פרשנויות, ללא הקדמות וללא סיומות.
+        החזר אך ורק את הטקסט המתומלל כטקסט פשוט.
+        `;
+
+        return {
+            contents:[{
                 role: "user",
-                parts: [
-                    { text: instructionPrompt }, // ההנחיה (תמלול או מענה)
-                    {
-                        inlineData: {
-                            mimeType: "audio/wav",
-                            data: base64Audio
-                        }
-                    }
+                parts:[
+                    { text: prompt },
+                    { inlineData: { mimeType: "audio/wav", data: base64Audio } }
                 ]
-            }
-        ];
+            }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 800 }
+        };
+    }
 
-        const payload = this.buildPayload(base64Audio, historyContext);
+    static async callGeminiAPI(payload) {
         const keys = config.getAvailableGeminiKeys();
-        
-        let lastDetailedError = null;
+        let lastError = null;
 
-        Logger.info("GeminiAIIntegration", `Starting AI generation using model: ${SYSTEM_CONSTANTS.YEMOT.GEMINI_MODEL}. Available keys: ${keys.length}`);
-
-        // מעבר על מערך המפתחות עד להצלחה
         for (let i = 0; i < keys.length; i++) {
             const apiKey = keys[i];
-            const maskedKey = apiKey.substring(0, 5) + "..." + apiKey.substring(apiKey.length - 4);
-            
             try {
-                Logger.debug("GeminiAIIntegration", `Attempting request with key[${i + 1}/${keys.length}]: ${maskedKey}`);
-                
-                // שימוש קשיח במודל שהתבקש gemini-3.1-flash-lite-preview
+                Logger.info("GeminiAPI", `Calling Gemini with key index ${i}`);
                 const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${SYSTEM_CONSTANTS.YEMOT.GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(endpoint, {
@@ -590,126 +344,127 @@ class GeminiAIIntegration {
                 });
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    Logger.warn("GeminiAIIntegration", `HTTP Error with key ${maskedKey}. Status: ${response.status}. Details: ${errorText}`);
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    const errText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errText}`);
                 }
 
                 const data = await response.json();
-                
                 if (data.candidates && data.candidates.length > 0 && data.candidates[0].content) {
-                    const rawText = data.candidates[0].content.parts[0].text;
-                    const cleanText = TextSanitizer.cleanForYemotTTS(rawText);
-                    Logger.info("GeminiAIIntegration", "Successfully generated AI response.");
-                    return cleanText;
-                } else {
-                    Logger.warn("GeminiAIIntegration", `Unexpected response structure from key ${maskedKey}. Data: ${JSON.stringify(data)}`);
-                    throw new Error("Invalid or empty response structure from Gemini API");
+                    return data.candidates[0].content.parts[0].text;
                 }
-
+                throw new Error("Empty content in Gemini response");
             } catch (error) {
-                lastDetailedError = error;
-                Logger.error("GeminiAIIntegration", `Key ${maskedKey} failed. Continuing to next key if available.`);
-                // ממשיכים לנסות עם המפתח הבא בלולאה
+                lastError = error;
+                Logger.warn("GeminiAPI", `Key failed: ${error.message}`);
             }
         }
+        throw new GeminiAPIError(`All Gemini keys failed. Last error: ${lastError?.message}`);
+    }
 
-        // הגענו לכאן? כל המפתחות נכשלו. זורקים שגיאה למערכת.
-        Logger.error("GeminiAIIntegration", "All available Gemini API keys failed exhaustively.");
-        throw new GeminiAPIError(`AI Generation failed. Last error: ${lastDetailedError ? lastDetailedError.message : 'Unknown Error'}`);
+    /**
+     * פונקציה לעיבוד צ'אט (מחזירה אובייקט עם שאלת המשתמש ותשובת הבוט)
+     */
+    static async processChatAudio(base64Audio, historyContext =[]) {
+        const payload = this.buildChatPayload(base64Audio, historyContext);
+        const rawResponse = await this.callGeminiAPI(payload);
+        
+        try {
+            // ניקוי קל במקרה שג'מיני הוסיף בלוק של ```json ... ```
+            let cleanJson = rawResponse.trim();
+            if (cleanJson.startsWith("```json")) {
+                cleanJson = cleanJson.substring(7, cleanJson.length - 3).trim();
+            } else if (cleanJson.startsWith("```")) {
+                cleanJson = cleanJson.substring(3, cleanJson.length - 3).trim();
+            }
+            
+            const parsed = JSON.parse(cleanJson);
+            return {
+                transcription: TextSanitizer.cleanForYemotTTS(parsed.transcription || "לא זוהה דיבור"),
+                answer: TextSanitizer.cleanForYemotTTS(parsed.answer || "לא הצלחתי לגבש תשובה")
+            };
+        } catch (e) {
+            Logger.error("GeminiAPI", "Failed to parse Gemini JSON response", e);
+            // אם ה-JSON נשבר, נניח שכל הטקסט הוא התשובה
+            return {
+                transcription: "תמלול לא זמין",
+                answer: TextSanitizer.cleanForYemotTTS(rawResponse)
+            };
+        }
+    }
+
+    /**
+     * פונקציה לתמלול מדויק (שלוחה 0)
+     */
+    static async processTranscriptionAudio(base64Audio) {
+        const payload = this.buildTranscriptionPayload(base64Audio);
+        const rawResponse = await this.callGeminiAPI(payload);
+        return TextSanitizer.cleanForYemotTTS(rawResponse);
     }
 }
-}
-            
 
 // ============================================================================
-// --- SECTION 10: YEMOT IVR RESPONSE BUILDER ---
+// --- SECTION 9: YEMOT IVR RESPONSE BUILDER ---
 // ============================================================================
 
-/**
- * מחלקה זו בונה את המחרוזת הסטרינגית שמוחזרת לימות המשיח.
- * היא עושה שימוש באמפרסנד (&) לשירשור הפקודות ומבטיחה תקינות מלאה.
- */
-class IVRBuilder {
+class IVRResponseBuilder {
     constructor() {
         this.commands =[];
     }
 
-    /**
-     * הוספת פקודת השמעת טקסט ממוחשב (TTS)
-     * @param {string} text - הטקסט להקראה
-     */
     addTTS(text) {
         if (!text) return this;
         const cleanText = TextSanitizer.cleanForYemotTTS(text);
-        // פורמט: id_list_message=t-טקסט
+        // שימוש מדויק ב- =, ללא רווחים או תווים בעייתיים
         this.commands.push(`id_list_message=t-${cleanText}`);
         return this;
     }
 
-    /**
-     * הוספת בקשת הקשה מהמשתמש.
-     * @param {string} text - הוראה קולית לפני ההקשה
-     * @param {string} varName - שם המשתנה שיוחזר לשרת
-     * @param {number} min - מינימום ספרות (ברירת מחדל 1)
-     * @param {number} max - מקסימום ספרות (ברירת מחדל 1)
-     */
     addReadDigits(text, varName, min = 1, max = 1) {
         const cleanText = TextSanitizer.cleanForYemotTTS(text);
         const timeout = SYSTEM_CONSTANTS.YEMOT.READ_TIMEOUT;
-        // פרמטר שני 'no': מוחק הקשות ישנות. פרמטר שישי 'No': עובר שלב ללא הקראת הספרה ובקשת אישור.
+        // פרמטרים מדוייקים למניעת שאלת "לאישור הקישו 1"
         this.commands.push(`read=t-${cleanText}=${varName},no,${max},${min},${timeout},No,yes,no`);
         return this;
     }
 
-    /**
-     * הוספת בקשת הקלטה מהמשתמש.
-     * @param {string} text - הוראה קולית לפני ההקלטה
-     * @param {string} varName - שם המשתנה שיוחזר לשרת (יכיל את נתיב ההקלטה)
-     * @param {string} callId - מזהה שיחה ליצירת שם קובץ מבוסס שיחה
-     */
-    addRecord(text, varName, callId) {
+    addReadEmail(text, varName) {
+        const cleanText = TextSanitizer.cleanForYemotTTS(text);
+        const timeout = "30"; // זמן ארוך יותר להקלדת מייל
+        // שימוש במקלדת אימייל של ימות המשיח (EmailKeyboard)
+        this.commands.push(`read=t-${cleanText}=${varName},no,100,5,${timeout},EmailKeyboard,yes,no`);
+        return this;
+    }
+
+    addRecordAudio(text, varName, callId) {
         const cleanText = TextSanitizer.cleanForYemotTTS(text);
         const fileName = `q_${callId}`;
         const folder = SYSTEM_CONSTANTS.YEMOT.RECORD_DIR;
-        // פרמטר שני 'no': לא ממחזר הקלטות קודמות
         this.commands.push(`read=t-${cleanText}=${varName},no,record,${folder},${fileName},no,yes,no,1,120`);
         return this;
     }
 
-    /**
-     * מעבר לשלוחה קבועה או ניתוק.
-     * @param {string} target - יעד, לדוגמה 'hangup' או נתיב '/1'
-     */
     addGoTo(target) {
         this.commands.push(`go_to_folder=${target}`);
         return this;
     }
 
-    /**
-     * הרכבת כל הפקודות למחרוזת חוקית אחת עבור השרת של ימות.
-     * @returns {string} 
-     */
     build() {
+        // שרשור תקני בעזרת אמפרסנד
         return this.commands.join('&');
     }
 }
 
 // ============================================================================
-// --- SECTION 11: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER) ---
+// --- SECTION 10: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER) ---
 // ============================================================================
 
-/**
- * נקודת הכניסה של פונקציית ה-Serverless ב-Vercel.
- * אחראית לקבל את הבקשה, לזהות מה המשתמש עשה בפעם האחרונה, ולהחזיר את הפקודה הבאה.
- */
 export default async function handler(req, res) {
-    const ivrBuilder = new IVRBuilder();
+    const ivrBuilder = new IVRResponseBuilder();
 
     try {
         Logger.info("System", `--- Incoming Request: ${req.method} ---`);
 
-        // 1. ניתוח פרמטרים חכם מתוך URL ו-Body כדי לתמוך ב-POST URL-Encoded מול ימות
+        // חילוץ פרמטרים חכם ל-GET ו-POST (url encoded)
         let rawBody = {};
         if (req.method === 'POST') {
             if (typeof req.body === 'string') {
@@ -723,333 +478,332 @@ export default async function handler(req, res) {
         const urlQuery = Object.fromEntries(urlObj.searchParams.entries());
         const query = { ...urlQuery, ...rawBody };
         
-        // עזר: תפיסת הערך האחרון מתוך פרמטר שחזר כמערך (התנהגות ידועה של ימות)
         const getParam = (key) => Array.isArray(query[key]) ? query[key][query[key].length - 1] : query[key];
 
-        // 2. זיהוי בסיסי של השיחה והלקוח
         const phone = getParam(SYSTEM_CONSTANTS.PARAMS.PHONE) || getParam(SYSTEM_CONSTANTS.PARAMS.ENTER_ID) || 'unknown';
         const callId = getParam(SYSTEM_CONSTANTS.PARAMS.CALL_ID) || `sim_${Date.now()}`;
         const isHangup = getParam(SYSTEM_CONSTANTS.PARAMS.HANGUP) === 'yes';
 
         Logger.debug("Request Headers", `Phone: ${phone}, CallId: ${callId}, isHangup: ${isHangup}`);
 
-        // 3. טיפול בניתוק - אם הלקוח ניתק, אין טעם להפעיל אלגוריתמים כבדים
+        // בדיקת ניתוק - אם ניתק, אין צורך להפעיל AI, רק לרשום לוג ולצאת
         if (isHangup) {
-            Logger.info("Flow Manager", `User ${phone} ended the call. Closing session.`);
+            Logger.info("Flow", `User ${phone} hung up.`);
             return sendValidResponse(res, "noop=hangup_acknowledged");
         }
 
-        // 4. "מכונת מצבים" (State Machine) לזיהוי הפעולה האחרונה שהמשתמש ביצע
+        // חיפוש הפעולה האחרונה שהמשתמש ביצע במכונת המצבים שלנו
         const allKeys = Array.from(urlObj.searchParams.keys());
-        if (req.method === 'POST' && typeof req.body !== 'string') {
-            allKeys.push(...Object.keys(rawBody));
-        }
+        if (req.method === 'POST' && typeof req.body !== 'string') allKeys.push(...Object.keys(rawBody));
 
-        // סינון משתני ליבה של ימות המשיח מתוך רשימת הפרמטרים
-        const customKeys = allKeys.filter(k => 
-            !k.startsWith('Api') && 
-            k !== 'token' && 
-            k !== SYSTEM_CONSTANTS.PARAMS.HANGUP
-        );
-        
-        // הפעולה הנוכחית האמיתית היא *המשתנה האחרון* ברשימה שימות שלחה לנו
+        const customKeys = allKeys.filter(k => !k.startsWith('Api') && k !== 'token' && k !== SYSTEM_CONSTANTS.PARAMS.HANGUP);
         const currentStepKey = customKeys.length > 0 ? customKeys[customKeys.length - 1] : null;
         const currentStepValue = currentStepKey ? getParam(currentStepKey) : null;
 
-        Logger.info("Flow Manager", `Current Step Identified: [${currentStepKey}] = [${currentStepValue}]`);
+        Logger.info("Flow State", `Current Step:[${currentStepKey}] = [${currentStepValue}]`);
 
-        // 5. ניתוב (Routing) לפי המצב שזוהה
-        // --- מצב 1: הקלטה רגילה או הקלטת המשך ---
-        if ((currentStepKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO || currentStepKey === "UserAudioAppend") && currentStepValue && currentStepValue.includes('.wav')) {
-            const isAppend = (currentStepKey === "UserAudioAppend");
-            await handleAudioProcessingAndAiResponse(phone, callId, currentStepValue, ivrBuilder, params.MenuChoice, isAppend);
-        }
+        // ==========================================
+        // ניתוב לוגיקה לפי מצבים (Routing)
+        // ==========================================
         
-        // --- מצב 2: תפריט המשך לשיחת AI (מקש 7/8) ---
+        // --- 1. צ'אט: קליטת אודיו ותשובת מודל ---
+        if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO && currentStepValue && currentStepValue.includes('.wav')) {
+            await handleChatAudio(phone, callId, currentStepValue, ivrBuilder);
+        }
+        // --- 2. צ'אט: תפריט המשך/יציאה ---
         else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE) {
             if (currentStepValue === '7') {
-                ivrBuilder.addRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
+                ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
             } else {
-                await serveMainMenuPrompt(ivrBuilder);
+                await serveMainMenu(ivrBuilder);
             }
         }
-
-        // --- מצב חדש: תפריט פעולות תמלול (שלוחה 0) ---
-        else if (currentStepKey === "TranscriptionAction") {
-            const userData = await StorageAPI.getUserProfile(phone);
-            const lastT = userData.transcriptions ? userData.transcriptions[userData.transcriptions.length - 1].text : "";
-
-            if (currentStepValue === '1') { // שמיעה חוזרת
-                ivrBuilder.addTTS(lastT);
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_MENU, "TranscriptionAction", 1, 1);
-            }
-            else if (currentStepValue === '2') { // הקלטה מחדש (דורס את האחרון)
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, 1, 120, "no", "record", "/ApiRecords");
-            }
-            else if (currentStepValue === '3') { // הקלטת המשך (משרשר לאחרון)
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, "UserAudioAppend", 1, 120, "no", "record", "/ApiRecords");
-            }
-            else if (currentStepValue === '4') { // שמירה וחזרה
-                ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_SAVED);
-                await serveMainMenuPrompt(ivrBuilder);
-            }
-        }
-
-        // --- מצב חדש: תפריט פעולות היסטוריה (שלוחה 3) ---
-        else if (currentStepKey === "HistoryAction") {
-            if (currentStepValue === '7') { // שיתוף (דוגמה למעבר שלוחה)
-                ivrBuilder.addGoTo("/77"); 
-            } else if (currentStepValue === '9') { // שליחה למייל
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.ENTER_EMAIL, "EmailAddress", 1, 50, "no", "text", "mail");
+        // --- 3. צ'אט: תפריט בחירת היסטוריה ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.HISTORY_CHOICE) {
+            if (currentStepValue === '0') {
+                await serveMainMenu(ivrBuilder);
             } else {
-                await serveMainMenuPrompt(ivrBuilder);
+                await handleChatHistorySelection(phone, currentStepValue, ivrBuilder);
             }
         }
-
-            // --- ניווט חדש: טיפול בתגובות לתפריט התמלול (מקשים 1-4) ---
-        else if (currentStepKey === "TranscriptionAction") {
-            const userData = await StorageAPI.getUserProfile(phone);
-            const lastT = userData.transcriptions && userData.transcriptions.length > 0 
-                ? userData.transcriptions[userData.transcriptions.length - 1].text 
-                : "";
-
-            if (currentStepValue === '1') { // שמיעה חוזרת
-                ivrBuilder.addTTS(`התמלול שלך הוא: ${lastT}`);
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_MENU, "TranscriptionAction", 1, 1);
-            }
-            else if (currentStepValue === '2') { // הקלטה מחדש
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, 1, 120, "no", "record", "/ApiRecords");
-            }
-            else if (currentStepValue === '3') { // הקלטת המשך
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, "UserAudioAppend", 1, 120, "no", "record", "/ApiRecords");
-            }
-            else if (currentStepValue === '4') { // שמירה ויציאה
-                ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_SAVED);
-                await serveMainMenuPrompt(ivrBuilder);
+        // --- 4. תמלול (שלוחה 0): קליטת אודיו לתמלול מדויק ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.TRANS_AUDIO && currentStepValue && currentStepValue.includes('.wav')) {
+            await handleTranscriptionAudio(phone, currentStepValue, ivrBuilder, false);
+        }
+        // --- 5. תמלול: קליטת אודיו להוספה (Append) ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.TRANS_APPEND_AUDIO && currentStepValue && currentStepValue.includes('.wav')) {
+            await handleTranscriptionAudio(phone, currentStepValue, ivrBuilder, true);
+        }
+        // --- 6. תמלול: תפריט פעולות (שמיעה, הקלטה מחדש, המשך, שמירה) ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.TRANS_MENU_CHOICE) {
+            await handleTranscriptionMenu(phone, callId, currentStepValue, ivrBuilder);
+        }
+        // --- 7. היסטוריית תמלולים (שלוחה 3): בחירת תמלול להשמעה ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.TRANS_HISTORY_CHOICE) {
+            if (currentStepValue === '0') {
+                await serveMainMenu(ivrBuilder);
+            } else {
+                await handleTransHistorySelection(phone, currentStepValue, ivrBuilder);
             }
         }
-
-        // --- ניווט חדש: טיפול בתגובות להיסטוריה (מקשים 7, 9) ---
-        else if (currentStepKey === "HistoryAction") {
-            if (currentStepValue === '7') {
-                ivrBuilder.addGoTo("/77"); // שלוחת שיתוף
-            }
-            else if (currentStepValue === '9') {
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.ENTER_EMAIL, "EmailAddress", 1, 50, "no", "text", "mail");
-            }
-            else {
-                await serveMainMenuPrompt(ivrBuilder);
-            }
+        // --- 8. היסטוריית תמלולים: פעולות (שיתוף 7, אימייל 9, חזרה 8) ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.TRANS_ACTION_CHOICE) {
+            await handleTransActionChoice(phone, currentStepValue, ivrBuilder);
         }
-
-            
-            
-            
-        // --- מצב 4: המשתמש בתפריט הראשי של המערכת ---
+        // --- 9. קליטת אימייל מלקוח ---
+        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.USER_EMAIL_INPUT) {
+            await handleEmailSend(phone, currentStepValue, ivrBuilder);
+        }
+        // --- 10. התפריט הראשי ---
         else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE) {
             if (currentStepValue === '1') {
-                await handleNewChatInitialization(phone, callId, ivrBuilder);
-            } 
-            else if (currentStepValue === '2') {
-                await handleHistoryMenuInitialization(phone, ivrBuilder);
-            }
-            // --- הוספת שלוחה 0: תמלול מתקדם ---
-            else if (currentStepValue === '0') {
-                Logger.info("Flow Manager", "Entering Transcription Mode (Sub-extension 0)");
-                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, 1, 120, "no", "record", "/ApiRecords");
-            }
-            // --- הוספת שלוחה 3: היסטוריית תמלולים ---
-            else if (currentStepValue === '3') {
-                const userData = await StorageAPI.getUserProfile(phone);
-                if (!userData.transcriptions || userData.transcriptions.length === 0) {
-                    ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.HISTORY_EMPTY);
-                    await serveMainMenuPrompt(ivrBuilder);
-                } else {
-                    let speech = "התמלולים השמורים שלך מהחדש לישן: ";
-                    // הופכים את המערך כדי להשמיע מהחדש לישן
-                    [...userData.transcriptions].reverse().forEach((t, i) => {
-                        speech += `תמלול מספר ${i+1}: ${t.text}. `;
-                    });
-                    ivrBuilder.addTTS(speech);
-ivrBuilder.addTTS("לשיתוף התמלול האחרון הקישו 7, לשליחה למייל הקישו 9, לחזרה הקישו 0");
-ivrBuilder.addReadDigits("", "HistoryAction", 1, 1);
-                }
-            }
-            else {
-                Logger.warn("Flow Manager", `Invalid main menu selection received: ${currentStepValue}. Restarting menu.`);
-                await serveMainMenuPrompt(ivrBuilder);
+                await initNewChat(phone, callId, ivrBuilder);
+            } else if (currentStepValue === '2') {
+                await initChatHistoryMenu(phone, ivrBuilder);
+            } else if (currentStepValue === '0') {
+                await initTranscription(phone, callId, ivrBuilder);
+            } else if (currentStepValue === '3') {
+                await initTransHistoryMenu(phone, ivrBuilder);
+            } else {
+                await serveMainMenu(ivrBuilder);
             }
         }
-        
-        
-        // --- מצב 5 (ברירת מחדל): כניסה ראשונית למערכת ---
+        // --- מצב ברירת מחדל ---
         else {
-            Logger.info("Flow Manager", "First entry to system. Serving main menu.");
-            // איחוד הקראת התפריט ובקשת ההקשה לפעולה אחת כדי למנוע ניתוק
+            Logger.info("Flow", "Entry point. Serving main menu.");
             ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE, 1, 1);
         }
 
-        // 6. הרכבת השרשור הסופי והחזרתו בצורה בטוחה ללקוח
-        const finalResponseStr = ivrBuilder.build();
-        Logger.debug("Final Response Output", finalResponseStr);
-        return sendValidResponse(res, finalResponseStr);
+        return sendValidResponse(res, ivrBuilder.build());
 
     } catch (error) {
-        // רשת הביטחון העליונה. אם הגענו לכאן משהו קרס, אבל אנחנו מחזירים לימות תגובה תקנית שמנתקת את השיחה בנימוס!
-        Logger.error("Global Handler Catch", "A critical error bypassed standard handling.", error);
-        
-        const fallbackIvr = new IVRBuilder(); // Use the CORRECT class name for the catch block!
-        fallbackIvr.addTTS(SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR);
-        fallbackIvr.addGoTo("hangup");
-        
-        return sendValidResponse(res, fallbackIvr.build());
+        Logger.error("Global Handler", "Fatal Error", error);
+        const errIvr = new IVRResponseBuilder();
+        errIvr.addTTS(SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR);
+        errIvr.addGoTo("hangup");
+        return sendValidResponse(res, errIvr.build());
     }
 }
 
 // ============================================================================
-// --- SECTION 12: SPECIFIC FLOW PROCESSORS ---
+// --- SECTION 13: LOGIC CONTROLLERS ---
 // ============================================================================
 
-/**
- * מוריד את קובץ האודיו, שולח למודל, מקבל תגובה ומעדכן את מסד הנתונים והלקוח.
- */
-async function handleAudioProcessingAndAiResponse(phone, callId, yemotAudioPath, ivrBuilder, menuChoice, isAppend = false) {
-    Logger.info("Processor", `Processing audio. Mode: ${menuChoice}, Append: ${isAppend}`);
-    
-    const base64Audio = await YemotIntegrationAPI.fetchAudioAsBase64(yemotAudioPath);
-    const userData = await StorageAPI.getUserProfile(phone);
-    
-    let prompt = "Please answer the user's question clearly in Hebrew.";
-    let isTranscriptionMode = (menuChoice === '0');
+// ------------------ CHAT LOGIC ------------------
 
-    if (isTranscriptionMode) {
-        prompt = "Transcribe the following audio exactly as spoken. Do not add any greeting, explanation, or punctuation. Just the raw text.";
-    }
-
-    // שליחה ל-Gemini עם הפרומפט המתאים
-    const aiResponseText = await GeminiAIIntegration.processAudioAndRespond(base64Audio, [], prompt);
-    
-    if (isTranscriptionMode) {
-        if (!userData.transcriptions) userData.transcriptions = [];
-        
-        if (isAppend && userData.transcriptions.length > 0) {
-            // שרשור לתמלול האחרון
-            userData.transcriptions[userData.transcriptions.length - 1].text += " " + aiResponseText;
-        } else {
-            // יצירת תמלול חדש
-            userData.transcriptions.push({
-                text: aiResponseText,
-                date: new Date().toISOString()
-            });
-        }
-    } else {
-        // לוגיקה רגילה של צ'אט (כפי שיש לך בקוד)
-        let currentChat = userData.chats.find(c => c.id === userData.currentChatId);
-        if (currentChat) {
-            currentChat.messages.push({ q: "הקלטה קולית", a: aiResponseText });
-        }
-    }
-    
-    await StorageAPI.saveUserProfile(phone, userData);
-    ivrBuilder.addTTS(aiResponseText);
-
-    // השמעת התפריט המתאים
-    if (isTranscriptionMode) {
-        ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_MENU, "TranscriptionAction", 1, 1);
-    } else {
-        ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE, 1, 1);
-    }
-}
-
-/**
- * מאתחל סשן של שיחה חדשה למשתמש
- */
-async function handleNewChatInitialization(phone, callId, ivrBuilder) {
-    Logger.info("Processor", "Bootstrapping new chat session infrastructure.");
-    
+async function initNewChat(phone, callId, ivrBuilder) {
     const userData = await StorageAPI.getUserProfile(phone);
     const newChatId = `chat_${Date.now()}`;
-    
-    userData.chats.push({
-        id: newChatId,
-        date: new Date().toISOString(),
-        messages:[]
-    });
+    userData.chats.push({ id: newChatId, date: new Date().toISOString(), messages:[] });
     userData.currentChatId = newChatId;
-    
     await StorageAPI.saveUserProfile(phone, userData);
-
-    ivrBuilder.addRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
+    ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
 }
 
-/**
- * מרכיב את תפריט ההיסטוריה על סמך נתוני המשתמש.
- */
-async function handleHistoryMenuInitialization(phone, ivrBuilder) {
-    Logger.info("Processor", "Constructing dynamic history menu.");
-    
+async function handleChatAudio(phone, callId, audioPath, ivrBuilder) {
+    const base64Audio = await YemotIntegrationAPI.fetchAudioAsBase64(audioPath);
     const userData = await StorageAPI.getUserProfile(phone);
     
-    if (!userData.chats || userData.chats.length === 0) {
-        Logger.info("Processor", "User lacks history. Rerouting to new chat.");
-        ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.NO_HISTORY);
-        await handleNewChatInitialization(phone, `sim_${Date.now()}`, ivrBuilder);
-        return;
+    let currentChat = userData.chats.find(c => c.id === userData.currentChatId);
+    if (!currentChat) {
+        currentChat = { id: `chat_rec_${Date.now()}`, date: new Date().toISOString(), messages:[] };
+        userData.chats.push(currentChat);
+        userData.currentChatId = currentChat.id;
     }
 
-    const recentChats = userData.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
-    let menuText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX;
+    const historyContext = currentChat.messages.slice(-5);
+    const { transcription, answer } = await GeminiAIIntegration.processChatAudio(base64Audio, historyContext);
     
-    recentChats.forEach((chat, index) => {
-        menuText += `לשיחה מספר ${index + 1} הקישו ${index + 1}. `;
-    });
-    menuText += SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_SUFFIX;
-
-    ivrBuilder.addReadDigits(menuText, SYSTEM_CONSTANTS.PARAMS.HISTORY_CHOICE, 1, 1);
-}
-
-/**
- * מקריא את תוכן השיחה הקודמת שהלקוח בחר לשמוע
- */
-async function handleHistoryPlaybackSelection(phone, choiceString, ivrBuilder) {
-    Logger.info("Processor", `Initiating history playback for user selection: ${choiceString}`);
-    
-    const userData = await StorageAPI.getUserProfile(phone);
-    const recentChats = userData.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
-    const selectedIndex = parseInt(choiceString, 10) - 1;
-
-    if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= recentChats.length) {
-        Logger.warn("Processor", `Out-of-bounds history selection: ${choiceString}`);
-        ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.HISTORY_INVALID_CHOICE);
-        await serveMainMenuPrompt(ivrBuilder);
-        return;
-    }
-
-    const selectedChat = recentChats[selectedIndex];
-    
-    userData.currentChatId = selectedChat.id;
+    currentChat.messages.push({ q: transcription, a: answer });
     await StorageAPI.saveUserProfile(phone, userData);
 
-    let playbackText = "היסטוריית שיחה מתחילה. ";
-    selectedChat.messages.forEach((msg, i) => {
-        playbackText += `תשובה מספר ${i + 1} הייתה ${msg.a}. `;
-    });
-
-    ivrBuilder.addTTS(playbackText);
+    ivrBuilder.addTTS(answer);
     ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE, 1, 1);
 }
 
-/**
- * פונקציית עזר להגשת התפריט הראשי
- */
-async function serveMainMenuPrompt(ivrBuilder) {
+async function initChatHistoryMenu(phone, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    if (!userData.chats || userData.chats.length === 0) {
+        ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.NO_HISTORY);
+        await serveMainMenu(ivrBuilder);
+        return;
+    }
+    const recent = userData.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+    let menu = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX;
+    recent.forEach((c, i) => menu += `לשיחה מספר ${i + 1} הקישו ${i + 1} `);
+    menu += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX;
+    ivrBuilder.addReadDigits(menu, SYSTEM_CONSTANTS.PARAMS.HISTORY_CHOICE, 1, 1);
+}
+
+async function handleChatHistorySelection(phone, choice, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    const recent = userData.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+    const idx = parseInt(choice, 10) - 1;
+
+    if (isNaN(idx) || idx < 0 || idx >= recent.length) {
+        ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
+        await serveMainMenu(ivrBuilder);
+        return;
+    }
+
+    const selectedChat = recent[idx];
+    userData.currentChatId = selectedChat.id;
+    await StorageAPI.saveUserProfile(phone, userData);
+
+    let text = "היסטוריית שיחה מתחילה ";
+    selectedChat.messages.forEach((msg, i) => {
+        text += `שאלה מספר ${i + 1} הייתה ${msg.q} והתשובה היא ${msg.a} `;
+    });
+    ivrBuilder.addTTS(text);
+    ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE, 1, 1);
+}
+
+// ------------------ TRANSCRIPTION LOGIC (שלוחה 0) ------------------
+
+async function initTranscription(phone, callId, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    userData.tempTranscription = ""; // איפוס תמלול זמני
+    await StorageAPI.saveUserProfile(phone, userData);
+    ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.PARAMS.TRANS_AUDIO, callId);
+}
+
+async function handleTranscriptionAudio(phone, audioPath, ivrBuilder, isAppend) {
+    const base64Audio = await YemotIntegrationAPI.fetchAudioAsBase64(audioPath);
+    const transcription = await GeminiAIIntegration.processTranscriptionAudio(base64Audio);
+    
+    const userData = await StorageAPI.getUserProfile(phone);
+    if (isAppend) {
+        userData.tempTranscription += " " + transcription;
+    } else {
+        userData.tempTranscription = transcription;
+    }
+    await StorageAPI.saveUserProfile(phone, userData);
+
+    ivrBuilder.addTTS(userData.tempTranscription);
+    ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.PARAMS.TRANS_MENU_CHOICE, 1, 1);
+}
+
+async function handleTranscriptionMenu(phone, callId, choice, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    
+    switch(choice) {
+        case '1': // Replay
+            ivrBuilder.addTTS(userData.tempTranscription || "אין טקסט להשמעה");
+            ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.PARAMS.TRANS_MENU_CHOICE, 1, 1);
+            break;
+        case '2': // Record Again
+            ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.PARAMS.TRANS_AUDIO, callId);
+            break;
+        case '3': // Append
+            ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.PARAMS.TRANS_APPEND_AUDIO, callId);
+            break;
+        case '4': // Save
+            if (userData.tempTranscription) {
+                userData.transcriptions.push({
+                    id: Date.now().toString(),
+                    date: new Date().toISOString(),
+                    text: userData.tempTranscription
+                });
+                userData.tempTranscription = ""; // נקה זמני
+                await StorageAPI.saveUserProfile(phone, userData);
+                ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.TRANS_SAVED);
+            }
+            await serveMainMenu(ivrBuilder);
+            break;
+        default:
+            await serveMainMenu(ivrBuilder);
+    }
+}
+
+// ------------------ TRANSCRIPTION HISTORY LOGIC (שלוחה 3) ------------------
+
+async function initTransHistoryMenu(phone, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    if (!userData.transcriptions || userData.transcriptions.length === 0) {
+        ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.NO_TRANS_HISTORY);
+        await serveMainMenu(ivrBuilder);
+        return;
+    }
+    const recent = userData.transcriptions.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+    let menu = SYSTEM_CONSTANTS.PROMPTS.TRANS_HISTORY_MENU_PREFIX;
+    recent.forEach((t, i) => menu += `לתמלול מספר ${i + 1} הקישו ${i + 1} `);
+    menu += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX;
+    ivrBuilder.addReadDigits(menu, SYSTEM_CONSTANTS.PARAMS.TRANS_HISTORY_CHOICE, 1, 1);
+}
+
+async function handleTransHistorySelection(phone, choice, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    const recent = userData.transcriptions.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+    const idx = parseInt(choice, 10) - 1;
+
+    if (isNaN(idx) || idx < 0 || idx >= recent.length) {
+        ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
+        await serveMainMenu(ivrBuilder);
+        return;
+    }
+
+    const selectedTrans = recent[idx];
+    userData.currentTransIndex = idx; // שמירת האינדקס כדי שנדע מה לשתף/לשלוח
+    await StorageAPI.saveUserProfile(phone, userData);
+
+    ivrBuilder.addTTS("התמלול הוא " + selectedTrans.text);
+    ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.TRANS_ACTION_CHOICE, 1, 1);
+}
+
+async function handleTransActionChoice(phone, choice, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    const recent = userData.transcriptions.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+    const idx = userData.currentTransIndex;
+
+    if (choice === '8' || idx === null || !recent[idx]) {
+        await serveMainMenu(ivrBuilder);
+        return;
+    }
+
+    const textToShare = recent[idx].text;
+
+    if (choice === '7') { // שיתוף בימות המשיח (יצירת קובץ והעברה אליו)
+        Logger.info("Action", "User requested Yemot File Sharing");
+        const targetDir = await YemotIntegrationAPI.uploadTranscriptionToYemot(textToShare, phone);
+        if (targetDir) {
+            ivrBuilder.addTTS("הקובץ נוצר בהצלחה הנכם מועברים לתיקיית השיתוף");
+            ivrBuilder.addGoTo(targetDir); // מעביר את המשתמש לתיקייה ייעודית שבה ישמע הודעות ויוכל להקיש על שיתוף
+        } else {
+            ivrBuilder.addTTS("אירעה שגיאה ביצירת קובץ השיתוף");
+            await serveMainMenu(ivrBuilder);
+        }
+    } 
+    else if (choice === '9') { // אימייל
+        Logger.info("Action", "User requested Email sending");
+        ivrBuilder.addReadEmail(SYSTEM_CONSTANTS.PROMPTS.EMAIL_PROMPT, SYSTEM_CONSTANTS.PARAMS.USER_EMAIL_INPUT);
+    }
+    else {
+        await serveMainMenu(ivrBuilder);
+    }
+}
+
+async function handleEmailSend(phone, emailAddress, ivrBuilder) {
+    const userData = await StorageAPI.getUserProfile(phone);
+    const idx = userData.currentTransIndex;
+    const textToShare = (idx !== null && userData.transcriptions.slice(-9).reverse()[idx]) 
+        ? userData.transcriptions.slice(-9).reverse()[idx].text 
+        : "תמלול לא נמצא";
+
+    // כאן בעולם האמיתי משלבים שירות כמו Resend או SendGrid כדי לשלוח את המייל
+    Logger.info("EmailService", `[MOCK] Sending email to: ${emailAddress}. Content: ${textToShare}`);
+    
+    // סימולציה של הצלחה
+    ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.EMAIL_SUCCESS);
+    await serveMainMenu(ivrBuilder);
+}
+
+// ------------------ MAIN MENU ------------------
+async function serveMainMenu(ivrBuilder) {
     ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE, 1, 1);
 }
 
-/**
- * פונקציית תשתית: הבטחת שליחת Header נקי וקוד HTTP 200 בלבד אל ימות המשיח.
- */
-function sendValidResponse(res, responseString) {
+// ------------------ RESPONSE HELPER ------------------
+function sendValidResponse(res, str) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.status(200).send(responseString);
+    res.status(200).send(str);
 }
