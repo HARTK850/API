@@ -1,17 +1,17 @@
 /**
  * @file api/index.js
- * @description מערכת IVR מקצועית מבוססת ימות המשיח, Vercel Blob ו-Google Gemini AI.
- * @version 3.0.0 (Enterprise Edition)
+ * @description Enterprise-Grade IVR System integrating Yemot HaMashiach, Vercel Blob (Private/Public adaptive), and Google Gemini AI.
+ * @version 4.0.0 (Enterprise Edition - Zero Downtime)
  * @author Custom AI Assistant
  * 
  * מפרט טכני ודרישות שיושמו בקוד זה:
  * 1. שלוחה אחת בלבד (type=api) המנהלת את כל התזרים (Menu, History, Chat).
  * 2. פורמט Yemot מחמיר: שימוש ב- "=" ו- "&", ללא שורות ריקות, שרשור מדויק.
- * 3. שימוש במודל הספציפי: gemini-3.1-flash-lite-preview.
- * 4. אחסון ב-Vercel Blob תחת הגישה access: 'public'.
+ * 3. שימוש במודל הספציפי: gemini-3.1-flash-lite-preview בלבד!
+ * 4. אחסון ב-Vercel Blob תחת הגישה Adaptive Private/Public.
  * 5. רוטציה בין מפתחות ה-API של גוגל למניעת הגבלות קצב (Rate Limits).
- * 6. ארכיטקטורה מונחית עצמים (OOP) ללא שגיאות 500 (Zero Downtime).
- * 7. אורך קוד ומבנה העולים על 650 שורות, כולל מנגנוני Retry ולוגים.
+ * 6. ארכיטקטורה מונחית עצמים (OOP) מתקדמת ללא שגיאות 500.
+ * 7. טיפול בשגיאות מלא בתוך בלוק Catch חסין התרסקויות.
  */
 
 import { put, list } from '@vercel/blob';
@@ -43,7 +43,7 @@ const SYSTEM_CONSTANTS = {
         READ_TIMEOUT: "7",
         BLOB_USERS_DIR: "users/",
         MAX_HISTORY_ITEMS: 9,
-        GEMINI_MODEL: "gemini-3.1-flash-lite-preview" // המודל הספציפי שנדרש
+        GEMINI_MODEL: "gemini-3.1-flash-lite-preview"
     },
     PARAMS: {
         PHONE: 'ApiPhone',
@@ -137,7 +137,7 @@ class Logger {
      * @param {string} message - ההודעה
      */
     static warn(context, message) {
-        console.warn(`[WARN] [${this.getTimestamp()}] [${context}] ${message}`);
+        console.warn(`[WARN] [${this.getTimestamp()}][${context}] ${message}`);
     }
 
     /**
@@ -159,7 +159,7 @@ class Logger {
      * @param {string} message - ההודעה
      */
     static debug(context, message) {
-        console.debug(`[DEBUG] [${this.getTimestamp()}] [${context}] ${message}`);
+        console.debug(`[DEBUG][${this.getTimestamp()}] [${context}] ${message}`);
     }
 }
 
@@ -174,6 +174,7 @@ class ConfigManager {
     constructor() {
         this.GEMINI_KEYS =[];
         this.CALL2ALL_TOKEN = '';
+        this.BLOB_TOKEN = '';
         this.initialize();
     }
 
@@ -184,6 +185,7 @@ class ConfigManager {
         try {
             this.GEMINI_KEYS = this.parseGeminiKeys(process.env.GEMINI_KEYS);
             this.CALL2ALL_TOKEN = process.env.CALL2ALL_TOKEN || '';
+            this.BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || '';
             this.validateConfiguration();
         } catch (error) {
             Logger.error("ConfigManager", "Failed to initialize configuration", error);
@@ -212,6 +214,10 @@ class ConfigManager {
 
         if (!this.CALL2ALL_TOKEN) {
             Logger.warn("ConfigManager", "CALL2ALL_TOKEN environment variable is missing.");
+        }
+
+        if (!this.BLOB_TOKEN) {
+            Logger.warn("ConfigManager", "BLOB_READ_WRITE_TOKEN environment variable is missing. Database access might fail.");
         }
     }
 
@@ -304,7 +310,7 @@ class RetryHelper {
 /**
  * מחלקה לניהול תקשורת מול מסד הנתונים Vercel Blob.
  * מנהלת קריאה וכתיבה של פרופילי משתמשים והיסטוריית שיחות בפורמט JSON.
- * גישה: Public (כדי למנוע שגיאות הרשאה בהורדת הקובץ).
+ * תמיכה אדפטיבית ב-Private ו-Public blobs.
  */
 class StorageAPI {
     
@@ -323,16 +329,22 @@ class StorageAPI {
         Logger.info("StorageAPI", `Fetching profile for file: ${fileName}`);
 
         const fetchTask = async () => {
-            // רשימת הקבצים לפי שם
-            const { blobs } = await list({ prefix: fileName });
+            // העברת טוקן חיונית במידה והחנות היא מסוג פרטי (Private)
+            const { blobs } = await list({ prefix: fileName, token: config.BLOB_TOKEN });
             
             if (!blobs || blobs.length === 0) {
                 Logger.info("StorageAPI", `No existing profile found for ${phone}. Initializing new profile.`);
                 return this.generateDefaultProfile();
             }
 
-            // היות והחנות public, אין צורך להוסיף טוקן ב-fetch
-            const response = await fetch(blobs[0].url);
+            // העברת ה-Bearer token קריטית בחנות מוגדרת Private
+            const fetchOptions = {
+                headers: {
+                    Authorization: `Bearer ${config.BLOB_TOKEN}`
+                }
+            };
+
+            const response = await fetch(blobs[0].url, fetchOptions);
             if (!response.ok) {
                 throw new Error(`HTTP Fetch failed with status ${response.status}`);
             }
@@ -351,7 +363,7 @@ class StorageAPI {
     }
 
     /**
-     * שמירת נתוני המשתמש למסד הנתונים בגישה ציבורית.
+     * שמירת נתוני המשתמש למסד הנתונים בתצורה אדפטיבית (Private/Public).
      * @param {string} phone - מספר הטלפון
      * @param {Object} data - הנתונים המעודכנים לשמירה
      */
@@ -365,16 +377,32 @@ class StorageAPI {
         Logger.info("StorageAPI", `Saving profile for file: ${fileName}`);
 
         const putTask = async () => {
-            // הגישה מוגדרת כ-public כדי להתאים להגדרות חנות ה-Blob ב-Vercel ולמנוע שגיאות.
-            await put(fileName, JSON.stringify(data), { 
-                access: 'public', 
-                addRandomSuffix: false 
-            });
+            try {
+                // מנסים לשמור קודם עם הגדרות לשרת פרטי (Private) כפי שמוגדר בחנות
+                await put(fileName, JSON.stringify(data), { 
+                    access: 'private', 
+                    addRandomSuffix: false,
+                    token: config.BLOB_TOKEN
+                });
+                Logger.info("StorageAPI", `Successfully saved profile as PRIVATE for ${phone}`);
+            } catch (err) {
+                // אם השרת זורק שגיאה שהגישה חייבת להיות ציבורית, אנחנו מבצעים Fallback שקוף
+                if (err.message && err.message.includes('public')) {
+                    Logger.warn("StorageAPI", "Private access rejected. Falling back to public access mode.");
+                    await put(fileName, JSON.stringify(data), { 
+                        access: 'public', 
+                        addRandomSuffix: false,
+                        token: config.BLOB_TOKEN
+                    });
+                    Logger.info("StorageAPI", `Successfully saved profile as PUBLIC for ${phone}`);
+                } else {
+                    throw err; // שגיאה אחרת, זורקים אותה הלאה ל-RetryHelper
+                }
+            }
         };
 
         try {
             await RetryHelper.withRetry(putTask, 2, 500, "StorageAPI.saveUserProfile");
-            Logger.info("StorageAPI", `Successfully saved profile for ${phone}`);
         } catch (error) {
             Logger.error("StorageAPI", `Failed to save user profile for ${phone}.`, error);
         }
@@ -464,7 +492,7 @@ class YemotIntegrationAPI {
 
 /**
  * מחלקה המנהלת את יצירת הקשר מול המודל של Google Gemini.
- * מיושם רוטציית מפתחות לניהול עומסים.
+ * מיושם רוטציית מפתחות לניהול עומסים ושימוש במודל הספציפי שנדרש.
  */
 class GeminiAIIntegration {
     
@@ -499,7 +527,7 @@ class GeminiAIIntegration {
             ],
             generationConfig: {
                 temperature: 0.7,
-                maxOutputTokens: 600, // לא לחפור ללקוח בטלפון
+                maxOutputTokens: 600, // לא לחפור ללקוח בטלפון, מקסמים תשובות בינוניות
             }
         };
     }
@@ -526,7 +554,7 @@ class GeminiAIIntegration {
             try {
                 Logger.debug("GeminiAIIntegration", `Attempting request with key[${i + 1}/${keys.length}]: ${maskedKey}`);
                 
-                // שימוש קשיח במודל שהתבקש
+                // שימוש קשיח במודל שהתבקש gemini-3.1-flash-lite-preview
                 const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${SYSTEM_CONSTANTS.YEMOT.GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(endpoint, {
@@ -549,7 +577,7 @@ class GeminiAIIntegration {
                     Logger.info("GeminiAIIntegration", "Successfully generated AI response.");
                     return cleanText;
                 } else {
-                    Logger.warn("GeminiAIIntegration", `Unexpected response structure from key ${maskedKey}.`);
+                    Logger.warn("GeminiAIIntegration", `Unexpected response structure from key ${maskedKey}. Data: ${JSON.stringify(data)}`);
                     throw new Error("Invalid or empty response structure from Gemini API");
                 }
 
@@ -574,7 +602,7 @@ class GeminiAIIntegration {
  * מחלקה זו בונה את המחרוזת הסטרינגית שמוחזרת לימות המשיח.
  * היא עושה שימוש באמפרסנד (&) לשירשור הפקודות ומבטיחה תקינות מלאה.
  */
-class IVRResponseBuilder {
+class IVRBuilder {
     constructor() {
         this.commands =[];
     }
@@ -586,13 +614,14 @@ class IVRResponseBuilder {
     addTTS(text) {
         if (!text) return this;
         const cleanText = TextSanitizer.cleanForYemotTTS(text);
+        // פורמט: id_list_message=t-טקסט
         this.commands.push(`id_list_message=t-${cleanText}`);
         return this;
     }
 
     /**
      * הוספת בקשת הקשה מהמשתמש.
-     * @param {string} text - הודעה שתוקרא לפני הבקשה
+     * @param {string} text - הוראה קולית לפני ההקשה
      * @param {string} varName - שם המשתנה שיוחזר לשרת
      * @param {number} min - מינימום ספרות (ברירת מחדל 1)
      * @param {number} max - מקסימום ספרות (ברירת מחדל 1)
@@ -600,18 +629,18 @@ class IVRResponseBuilder {
     addReadDigits(text, varName, min = 1, max = 1) {
         const cleanText = TextSanitizer.cleanForYemotTTS(text);
         const timeout = SYSTEM_CONSTANTS.YEMOT.READ_TIMEOUT;
-        // פרמטר שני 'no': מוחק הקשות ישנות. פרמטר שישי 'No': עובר שלב ללא הקראת הספרה ובקשת אישור
+        // פרמטר שני 'no': מוחק הקשות ישנות. פרמטר שישי 'No': עובר שלב ללא הקראת הספרה ובקשת אישור.
         this.commands.push(`read=t-${cleanText}=${varName},no,${max},${min},${timeout},No,yes,no`);
         return this;
     }
 
     /**
      * הוספת בקשת הקלטה מהמשתמש.
-     * @param {string} text - הודעה שתוקרא לפני ההקלטה
+     * @param {string} text - הוראה קולית לפני ההקלטה
      * @param {string} varName - שם המשתנה שיוחזר לשרת (יכיל את נתיב ההקלטה)
-     * @param {string} callId - מזהה שיחה למניעת דריסת קבצים
+     * @param {string} callId - מזהה שיחה ליצירת שם קובץ מבוסס שיחה
      */
-    addRecordAudio(text, varName, callId) {
+    addRecord(text, varName, callId) {
         const cleanText = TextSanitizer.cleanForYemotTTS(text);
         const fileName = `q_${callId}`;
         const folder = SYSTEM_CONSTANTS.YEMOT.RECORD_DIR;
@@ -647,7 +676,7 @@ class IVRResponseBuilder {
  * אחראית לקבל את הבקשה, לזהות מה המשתמש עשה בפעם האחרונה, ולהחזיר את הפקודה הבאה.
  */
 export default async function handler(req, res) {
-    const ivrBuilder = new IVRResponseBuilder();
+    const ivrBuilder = new IVRBuilder();
 
     try {
         Logger.info("System", `--- Incoming Request: ${req.method} ---`);
@@ -676,13 +705,13 @@ export default async function handler(req, res) {
 
         Logger.debug("Request Headers", `Phone: ${phone}, CallId: ${callId}, isHangup: ${isHangup}`);
 
-        // 3. טיפול בניתוק - אם הלקוח ניתק, אין טעם להפעיל אלגוריתמים כבדים של בינה מלאכותית
+        // 3. טיפול בניתוק - אם הלקוח ניתק, אין טעם להפעיל אלגוריתמים כבדים
         if (isHangup) {
             Logger.info("Flow Manager", `User ${phone} ended the call. Closing session.`);
             return sendValidResponse(res, "noop=hangup_acknowledged");
         }
 
-        // 4. "מכונת מצבים" (State Machine) לזיהוי הפעולה האחרונה שהמשתמש ביצע במערכת!
+        // 4. "מכונת מצבים" (State Machine) לזיהוי הפעולה האחרונה שהמשתמש ביצע
         const allKeys = Array.from(urlObj.searchParams.keys());
         if (req.method === 'POST' && typeof req.body !== 'string') {
             allKeys.push(...Object.keys(rawBody));
@@ -701,7 +730,7 @@ export default async function handler(req, res) {
 
         Logger.info("Flow Manager", `Current Step Identified: [${currentStepKey}] = [${currentStepValue}]`);
 
-        // 5. ניתוב (Routing) לפי הצעד הנוכחי
+        // 5. ניתוב (Routing) לפי המצב שזוהה
         
         // --- מצב 1: המשתמש הקליט הרגע אודיו ואנו מקבלים אותו מ-ימות ---
         if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO && currentStepValue && currentStepValue.includes('.wav')) {
@@ -712,7 +741,7 @@ export default async function handler(req, res) {
         else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE) {
             if (currentStepValue === '7') {
                 Logger.info("Flow Manager", "User elected to continue the current chat.");
-                ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
+                ivrBuilder.addRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
             } else {
                 Logger.info("Flow Manager", "User elected to return to the main menu.");
                 await serveMainMenuPrompt(ivrBuilder);
@@ -756,11 +785,10 @@ export default async function handler(req, res) {
         return sendValidResponse(res, finalResponseStr);
 
     } catch (error) {
-        // רשת הביטחון העליונה. אם הגענו לכאן משהו קרס בצורה קשה מאוד.
-        // נחזיר ללקוח הודעה מסודרת וננתק במקום לזרוק לו 500 בפרצוף.
+        // רשת הביטחון העליונה. אם הגענו לכאן משהו קרס, אבל אנחנו מחזירים לימות תגובה תקנית שמנתקת את השיחה בנימוס!
         Logger.error("Global Handler Catch", "A critical error bypassed standard handling.", error);
         
-        const fallbackIvr = new IVRResponseBuilder();
+        const fallbackIvr = new IVRBuilder(); // Use the CORRECT class name for the catch block!
         fallbackIvr.addTTS(SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR);
         fallbackIvr.addGoTo("hangup");
         
@@ -778,13 +806,13 @@ export default async function handler(req, res) {
 async function handleAudioProcessingAndAiResponse(phone, callId, yemotAudioPath, ivrBuilder) {
     Logger.info("Processor", "Processing user audio chunk...");
     
-    // א. הורדת האודיו מימות המשיח
+    // א. הורדה
     const base64Audio = await YemotIntegrationAPI.fetchAudioAsBase64(yemotAudioPath);
     
     // ב. הבאת נתוני משתמש ממסד הנתונים Vercel Blob
     const userData = await StorageAPI.getUserProfile(phone);
     
-    // איתור שיחה נוכחית (או פתיחת אחת חדשה אם נמחק בטעות)
+    // איתור שיחה נוכחית
     let currentChat = userData.chats.find(c => c.id === userData.currentChatId);
     if (!currentChat) {
         Logger.warn("Processor", "Active chat context lost. Bootstrapping recovery chat.");
@@ -806,7 +834,7 @@ async function handleAudioProcessingAndAiResponse(phone, callId, yemotAudioPath,
     });
     await StorageAPI.saveUserProfile(phone, userData);
 
-    // ה. בניית החזר ללקוח
+    // ה. בניית הפלט והתפריט
     ivrBuilder.addTTS(aiResponseText);
     ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE, 1, 1);
 }
@@ -829,7 +857,7 @@ async function handleNewChatInitialization(phone, callId, ivrBuilder) {
     
     await StorageAPI.saveUserProfile(phone, userData);
 
-    ivrBuilder.addRecordAudio(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
+    ivrBuilder.addRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
 }
 
 /**
@@ -840,7 +868,6 @@ async function handleHistoryMenuInitialization(phone, ivrBuilder) {
     
     const userData = await StorageAPI.getUserProfile(phone);
     
-    // בדיקה שקיימות שיחות בעבר
     if (!userData.chats || userData.chats.length === 0) {
         Logger.info("Processor", "User lacks history. Rerouting to new chat.");
         ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.NO_HISTORY);
@@ -848,7 +875,6 @@ async function handleHistoryMenuInitialization(phone, ivrBuilder) {
         return;
     }
 
-    // הגבלת היסטוריה לעד 9 שיחות כדי להתאים למקשי הטלפון 1-9
     const recentChats = userData.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
     let menuText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX;
     
@@ -870,7 +896,6 @@ async function handleHistoryPlaybackSelection(phone, choiceString, ivrBuilder) {
     const recentChats = userData.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
     const selectedIndex = parseInt(choiceString, 10) - 1;
 
-    // אבטחת קלטים (Input Validation)
     if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= recentChats.length) {
         Logger.warn("Processor", `Out-of-bounds history selection: ${choiceString}`);
         ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.HISTORY_INVALID_CHOICE);
@@ -880,7 +905,6 @@ async function handleHistoryPlaybackSelection(phone, choiceString, ivrBuilder) {
 
     const selectedChat = recentChats[selectedIndex];
     
-    // הגדרת השיחה הישנה כשיחה ה'פעילה' כעת, כדי שיוכל להמשיך אותה בלחיצה על 7
     userData.currentChatId = selectedChat.id;
     await StorageAPI.saveUserProfile(phone, userData);
 
@@ -894,7 +918,7 @@ async function handleHistoryPlaybackSelection(phone, choiceString, ivrBuilder) {
 }
 
 /**
- * פונקציית עזר לשירות התפריט הראשי
+ * פונקציית עזר להגשת התפריט הראשי
  */
 async function serveMainMenuPrompt(ivrBuilder) {
     ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE, 1, 1);
