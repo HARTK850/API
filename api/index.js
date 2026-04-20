@@ -222,7 +222,7 @@ class GeminiAPI {
         for (const apiKey of config.GEMINI_KEYS) {
             try {
                 console.log(`[GeminiAPI] Trying with key ending in ...${apiKey.slice(-4)}`);
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(url, {
                     method: 'POST',
