@@ -35,8 +35,14 @@ const SYSTEM_CONSTANTS = {
         CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
         SYSTEM_ERROR: "אירעה שגיאה בלתי צפויה במערכת. אנא נסו שוב מאוחר יותר. שלום ותודה.",
         GEMINI_PROMPT_INSTRUCTION: "זה קובץ אודיו של שאלה. תמלל וענה. אם לא הבנת תגיד שלא הבנת. אל תשתמש בכוכביות, סולמיות, או תווים מיוחדים בתשובה.",
-        PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
-        PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:"
+    PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
+        PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
+        TRANSCRIPTION_WELCOME: "נא הקליטו את המלל לתמלול לאחר הצליל, בסיום הקישו סולמית",
+        TRANSCRIPTION_MENU: "לשמיעה חוזרת הקישו 1, להקלטה מחדש הקישו 2, להמשך הקלטה הקישו 3, לשמירת התמלול הקישו 4",
+        TRANSCRIPTION_SAVED: "התמלול נשמר בהצלחה בשלוחה 3",
+        HISTORY_EMPTY: "אין תמלולים שמורים",
+        ENTER_EMAIL: "נא הקלידו את כתובת המייל ובסיומה הקישו סולמית. להקלדת @ הקישו פעמיים כוכבית",
+        EMAIL_SENT: "התמלול נשלח למייל בהצלחה",
     },
     YEMOT: {
         RECORD_DIR: "/ApiRecords",
@@ -391,7 +397,7 @@ class StorageAPI {
                 if (err.message && err.message.includes('public')) {
                     Logger.warn("StorageAPI", "Private access rejected. Falling back to public access mode.");
                     await put(fileName, JSON.stringify(data), { 
-                        access: 'public', 
+                        access: 'private', 
                         addRandomSuffix: false,
                         token: config.BLOB_TOKEN
                     });
@@ -416,6 +422,7 @@ class StorageAPI {
     static generateDefaultProfile() {
         return {
             chats:[],
+            transcriptions: [],
             currentChatId: null,
             createdAt: new Date().toISOString()
         };
@@ -539,7 +546,25 @@ class GeminiAIIntegration {
      * @param {Array} historyContext - היסטוריית השיחה
      * @returns {Promise<string>} הטקסט שנוצר ונוקה
      */
-    static async processAudioAndRespond(base64Audio, historyContext =[]) {
+    static async processAudioAndRespond(base64Audio, historyContext = [], instructionPrompt = "") {
+        const keys = config.getAvailableGeminiKeys();
+        
+        // בניית ההקשר עבור Gemini
+        const contents = [
+            {
+                role: "user",
+                parts: [
+                    { text: instructionPrompt }, // ההנחיה (תמלול או מענה)
+                    {
+                        inlineData: {
+                            mimeType: "audio/wav",
+                            data: base64Audio
+                        }
+                    }
+                ]
+            }
+        ];
+
         const payload = this.buildPayload(base64Audio, historyContext);
         const keys = config.getAvailableGeminiKeys();
         
@@ -594,6 +619,8 @@ class GeminiAIIntegration {
         throw new GeminiAPIError(`AI Generation failed. Last error: ${lastDetailedError ? lastDetailedError.message : 'Unknown Error'}`);
     }
 }
+}
+            
 
 // ============================================================================
 // --- SECTION 10: YEMOT IVR RESPONSE BUILDER ---
@@ -732,33 +759,92 @@ export default async function handler(req, res) {
         Logger.info("Flow Manager", `Current Step Identified: [${currentStepKey}] = [${currentStepValue}]`);
 
         // 5. ניתוב (Routing) לפי המצב שזוהה
-        
-        // --- מצב 1: המשתמש הקליט הרגע אודיו ואנו מקבלים אותו מ-ימות ---
-        if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO && currentStepValue && currentStepValue.includes('.wav')) {
-            await handleAudioProcessingAndAiResponse(phone, callId, currentStepValue, ivrBuilder);
+        // --- מצב 1: הקלטה רגילה או הקלטת המשך ---
+        if ((currentStepKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO || currentStepKey === "UserAudioAppend") && currentStepValue && currentStepValue.includes('.wav')) {
+            const isAppend = (currentStepKey === "UserAudioAppend");
+            await handleAudioProcessingAndAiResponse(phone, callId, currentStepValue, ivrBuilder, params.MenuChoice, isAppend);
         }
         
-        // --- מצב 2: המשתמש נמצא בתפריט ההמשך (אחרי תשובת ה-AI) ---
+        // --- מצב 2: תפריט המשך לשיחת AI (מקש 7/8) ---
         else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE) {
             if (currentStepValue === '7') {
-                Logger.info("Flow Manager", "User elected to continue the current chat.");
                 ivrBuilder.addRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, callId);
             } else {
-                Logger.info("Flow Manager", "User elected to return to the main menu.");
                 await serveMainMenuPrompt(ivrBuilder);
             }
         }
-        
-        // --- מצב 3: המשתמש שומע את תפריט ההיסטוריה ובחר שיחה ---
-        else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.HISTORY_CHOICE) {
-            if (currentStepValue === '0') {
-                Logger.info("Flow Manager", "User returned to main menu from history list.");
+
+        // --- מצב חדש: תפריט פעולות תמלול (שלוחה 0) ---
+        else if (currentStepKey === "TranscriptionAction") {
+            const userData = await StorageAPI.getUserProfile(phone);
+            const lastT = userData.transcriptions ? userData.transcriptions[userData.transcriptions.length - 1].text : "";
+
+            if (currentStepValue === '1') { // שמיעה חוזרת
+                ivrBuilder.addTTS(lastT);
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_MENU, "TranscriptionAction", 1, 1);
+            }
+            else if (currentStepValue === '2') { // הקלטה מחדש (דורס את האחרון)
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, 1, 120, "no", "record", "/ApiRecords");
+            }
+            else if (currentStepValue === '3') { // הקלטת המשך (משרשר לאחרון)
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, "UserAudioAppend", 1, 120, "no", "record", "/ApiRecords");
+            }
+            else if (currentStepValue === '4') { // שמירה וחזרה
+                ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_SAVED);
                 await serveMainMenuPrompt(ivrBuilder);
+            }
+        }
+
+        // --- מצב חדש: תפריט פעולות היסטוריה (שלוחה 3) ---
+        else if (currentStepKey === "HistoryAction") {
+            if (currentStepValue === '7') { // שיתוף (דוגמה למעבר שלוחה)
+                ivrBuilder.addGoTo("/77"); 
+            } else if (currentStepValue === '9') { // שליחה למייל
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.ENTER_EMAIL, "EmailAddress", 1, 50, "no", "text", "mail");
             } else {
-                await handleHistoryPlaybackSelection(phone, currentStepValue, ivrBuilder);
+                await serveMainMenuPrompt(ivrBuilder);
             }
         }
-        
+
+            // --- ניווט חדש: טיפול בתגובות לתפריט התמלול (מקשים 1-4) ---
+        else if (currentStepKey === "TranscriptionAction") {
+            const userData = await StorageAPI.getUserProfile(phone);
+            const lastT = userData.transcriptions && userData.transcriptions.length > 0 
+                ? userData.transcriptions[userData.transcriptions.length - 1].text 
+                : "";
+
+            if (currentStepValue === '1') { // שמיעה חוזרת
+                ivrBuilder.addTTS(`התמלול שלך הוא: ${lastT}`);
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_MENU, "TranscriptionAction", 1, 1);
+            }
+            else if (currentStepValue === '2') { // הקלטה מחדש
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, 1, 120, "no", "record", "/ApiRecords");
+            }
+            else if (currentStepValue === '3') { // הקלטת המשך
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, "UserAudioAppend", 1, 120, "no", "record", "/ApiRecords");
+            }
+            else if (currentStepValue === '4') { // שמירה ויציאה
+                ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_SAVED);
+                await serveMainMenuPrompt(ivrBuilder);
+            }
+        }
+
+        // --- ניווט חדש: טיפול בתגובות להיסטוריה (מקשים 7, 9) ---
+        else if (currentStepKey === "HistoryAction") {
+            if (currentStepValue === '7') {
+                ivrBuilder.addGoTo("/77"); // שלוחת שיתוף
+            }
+            else if (currentStepValue === '9') {
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.ENTER_EMAIL, "EmailAddress", 1, 50, "no", "text", "mail");
+            }
+            else {
+                await serveMainMenuPrompt(ivrBuilder);
+            }
+        }
+
+            
+            
+            
         // --- מצב 4: המשתמש בתפריט הראשי של המערכת ---
         else if (currentStepKey === SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE) {
             if (currentStepValue === '1') {
@@ -767,11 +853,34 @@ export default async function handler(req, res) {
             else if (currentStepValue === '2') {
                 await handleHistoryMenuInitialization(phone, ivrBuilder);
             }
+            // --- הוספת שלוחה 0: תמלול מתקדם ---
+            else if (currentStepValue === '0') {
+                Logger.info("Flow Manager", "Entering Transcription Mode (Sub-extension 0)");
+                ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_WELCOME, SYSTEM_CONSTANTS.PARAMS.USER_AUDIO, 1, 120, "no", "record", "/ApiRecords");
+            }
+            // --- הוספת שלוחה 3: היסטוריית תמלולים ---
+            else if (currentStepValue === '3') {
+                const userData = await StorageAPI.getUserProfile(phone);
+                if (!userData.transcriptions || userData.transcriptions.length === 0) {
+                    ivrBuilder.addTTS(SYSTEM_CONSTANTS.PROMPTS.HISTORY_EMPTY);
+                    await serveMainMenuPrompt(ivrBuilder);
+                } else {
+                    let speech = "התמלולים השמורים שלך מהחדש לישן: ";
+                    // הופכים את המערך כדי להשמיע מהחדש לישן
+                    [...userData.transcriptions].reverse().forEach((t, i) => {
+                        speech += `תמלול מספר ${i+1}: ${t.text}. `;
+                    });
+                    ivrBuilder.addTTS(speech);
+ivrBuilder.addTTS("לשיתוף התמלול האחרון הקישו 7, לשליחה למייל הקישו 9, לחזרה הקישו 0");
+ivrBuilder.addReadDigits("", "HistoryAction", 1, 1);
+                }
+            }
             else {
                 Logger.warn("Flow Manager", `Invalid main menu selection received: ${currentStepValue}. Restarting menu.`);
                 await serveMainMenuPrompt(ivrBuilder);
             }
         }
+        
         
         // --- מצב 5 (ברירת מחדל): כניסה ראשונית למערכת ---
         else {
@@ -804,40 +913,52 @@ export default async function handler(req, res) {
 /**
  * מוריד את קובץ האודיו, שולח למודל, מקבל תגובה ומעדכן את מסד הנתונים והלקוח.
  */
-async function handleAudioProcessingAndAiResponse(phone, callId, yemotAudioPath, ivrBuilder) {
-    Logger.info("Processor", "Processing user audio chunk...");
+async function handleAudioProcessingAndAiResponse(phone, callId, yemotAudioPath, ivrBuilder, menuChoice, isAppend = false) {
+    Logger.info("Processor", `Processing audio. Mode: ${menuChoice}, Append: ${isAppend}`);
     
-    // א. הורדה
     const base64Audio = await YemotIntegrationAPI.fetchAudioAsBase64(yemotAudioPath);
-    
-    // ב. הבאת נתוני משתמש ממסד הנתונים Vercel Blob
     const userData = await StorageAPI.getUserProfile(phone);
     
-    // איתור שיחה נוכחית
-    let currentChat = userData.chats.find(c => c.id === userData.currentChatId);
-    if (!currentChat) {
-        Logger.warn("Processor", "Active chat context lost. Bootstrapping recovery chat.");
-        currentChat = { id: `chat_rec_${Date.now()}`, date: new Date().toISOString(), messages:[] };
-        userData.chats.push(currentChat);
-        userData.currentChatId = currentChat.id;
+    let prompt = "Please answer the user's question clearly in Hebrew.";
+    let isTranscriptionMode = (menuChoice === '0');
+
+    if (isTranscriptionMode) {
+        prompt = "Transcribe the following audio exactly as spoken. Do not add any greeting, explanation, or punctuation. Just the raw text.";
     }
 
-    // לקיחת חמשת ההודעות האחרונות כדי לספק ל-Gemini "זיכרון" שיחה (Context)
-    const historyContext = currentChat.messages.slice(-5);
-
-    // ג. ייצור תגובה מול ה-AI
-    const aiResponseText = await GeminiAIIntegration.processAudioAndRespond(base64Audio, historyContext);
+    // שליחה ל-Gemini עם הפרומפט המתאים
+    const aiResponseText = await GeminiAIIntegration.processAudioAndRespond(base64Audio, [], prompt);
     
-    // ד. שמירת הנתונים המעודכנים כולל התשובה החדשה למסד הנתונים
-    currentChat.messages.push({
-        q: "הקלטה קולית שסופקה על ידי המשתמש",
-        a: aiResponseText
-    });
+    if (isTranscriptionMode) {
+        if (!userData.transcriptions) userData.transcriptions = [];
+        
+        if (isAppend && userData.transcriptions.length > 0) {
+            // שרשור לתמלול האחרון
+            userData.transcriptions[userData.transcriptions.length - 1].text += " " + aiResponseText;
+        } else {
+            // יצירת תמלול חדש
+            userData.transcriptions.push({
+                text: aiResponseText,
+                date: new Date().toISOString()
+            });
+        }
+    } else {
+        // לוגיקה רגילה של צ'אט (כפי שיש לך בקוד)
+        let currentChat = userData.chats.find(c => c.id === userData.currentChatId);
+        if (currentChat) {
+            currentChat.messages.push({ q: "הקלטה קולית", a: aiResponseText });
+        }
+    }
+    
     await StorageAPI.saveUserProfile(phone, userData);
-
-    // ה. בניית הפלט והתפריט
     ivrBuilder.addTTS(aiResponseText);
-    ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE, 1, 1);
+
+    // השמעת התפריט המתאים
+    if (isTranscriptionMode) {
+        ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.TRANSCRIPTION_MENU, "TranscriptionAction", 1, 1);
+    } else {
+        ivrBuilder.addReadDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE, 1, 1);
+    }
 }
 
 /**
