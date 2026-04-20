@@ -261,59 +261,59 @@ class GeminiAPI {
 // 5. מחלקת עיצוב תגובות IVR (Yemot Response Builder)
 // ============================================================================
 
+// ============================================================================
+// 5. מחלקת עיצוב תגובות IVR (Yemot Response Builder)
+// ============================================================================
+
 class IVRBuilder {
-    /**
-     * ימות המשיח דורשת פורמט ספציפי של מחרוזות המשורשרות ב- &.
-     * המחלקה בונה את הפורמט התקני ביותר למניעת שגיאות והבטחת יציבות.
-     * אין רווחים מיותרים ואין שורות ריקות כבקשתך (הופרד ב \n).
-     */
     constructor() {
         this.commands =[];
     }
 
     /**
+     * ניקוי טקסט מסימנים ששוברים את הפורמט של ימות המשיח.
+     * נקודה (.) שוברת שרשור id_list_message.
+     * פסיק (,) שובר את הפרמטרים בפקודת read.
+     * מקף (-) מבלבל את הפקודה t-.
+     */
+    cleanForYemot(text) {
+        if (!text) return "";
+        return text.replace(/[.,\-?!:\n]/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    /**
      * הפעלת קובץ טקסט למנוע הקראה (TTS)
-     * @param {string} text טקסט להקראה
      */
     addTTS(text) {
         if (!text) return this;
-        // שימוש בפורמט הרשמי: id_list_message=t-טקסט
-        this.commands.push(`id_list_message=t-${text}`);
+        const cleanText = this.cleanForYemot(text);
+        this.commands.push(`id_list_message=t-${cleanText}`);
         return this;
     }
 
     /**
      * קבלת הקשה ממשתמש
-     * @param {string} text הודעה שתשמע לפני ההקשה
-     * @param {string} varName שם המשתנה שיישלח חזרה לשרת
-     * @param {number} min מינימום ספרות
-     * @param {number} max מקסימום ספרות
      */
     addReadDigits(text, varName, min = 1, max = 1) {
-        // פורמט ה-read לקבלת נתונים (הקשה):
-        // read=t-טקסט=VarName,AskNo(yes),Max,Min,TimeOut,Type(Digits),BlockStar(yes),BlockZero(no)
-        this.commands.push(`read=t-${text}=${varName},yes,${max},${min},7,Digits,yes,no,*`);
+        const cleanText = this.cleanForYemot(text);
+        // שימוש ב-AskNo כדי שלא יבקש "לאישור הקישו 1"
+        this.commands.push(`read=t-${cleanText}=${varName},AskNo,${max},${min},7,Digits,yes,no`);
         return this;
     }
 
     /**
      * קבלת הקלטה ממשתמש
-     * @param {string} text הודעה לפני הקלטה
-     * @param {string} varName שם המשתנה שיישלח חזרה לשרת (יכיל OK)
-     * @param {string} callId מזהה השיחה (לצורך שם קובץ ייחודי)
      */
     addRecord(text, varName, callId) {
-        // פורמט ה-read להקלטה:
-        // read=t-טקסט=VarName,AskNo(yes),Type(record),Folder,FileName,SayRecordMenu(no),SaveHangup(yes),Append(no),Min(1),Max(120)
-        // שומרים בתיקייה /ApiRecords/
+        const cleanText = this.cleanForYemot(text);
         const fileName = `q_${callId}`;
-        this.commands.push(`read=t-${text}=${varName},yes,record,/ApiRecords,${fileName},no,yes,no,1,120`);
+        // פארמטרים: VarName, UseExisting(ריק), Type(record), Folder, FileName, SayRecordMenu(no), SaveHangup(yes), Append(no), Min(1), Max(120)
+        this.commands.push(`read=t-${cleanText}=${varName},,record,/ApiRecords,${fileName},no,yes,no,1,120`);
         return this;
     }
 
     /**
      * מעבר לשלוחה אחרת או ניתוק
-     * @param {string} folder נתיב או "hangup"
      */
     addGoTo(folder) {
         this.commands.push(`go_to_folder=${folder}`);
@@ -321,11 +321,9 @@ class IVRBuilder {
     }
 
     /**
-     * בניית המחרוזת הסופית למענה לימות המשיח. 
-     * חיבור הפקודות חייב להתבצע בעזרת & כדי שימות יקראו את כל הפקודות ברצף.
+     * בניית המחרוזת הסופית - חיבור הפקודות ב-&
      */
     build() {
-        // שינוי קריטי: חיבור הפקודות עם & במקום \n
         return this.commands.join('&');
     }
 }
