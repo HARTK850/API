@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
- * @description Enterprise-Grade IVR System integrating Yemot HaMashiach, Vercel Blob, and Google Gemini AI.
- * @version 6.2.0 (Blob Public Fix & Flow Correction)
+ * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini.
+ * @version 8.0.0 (Private Blob Enforced & Audio VarName Fixed)
  * @author Custom AI Assistant
  */
 
@@ -45,31 +45,24 @@ const SYSTEM_CONSTANTS = {
     },
     PROMPTS: {
         MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית לתמלול מדויק הקישו 0 לשיחת צ'אט הקישו 1 להיסטוריית צ'אט הקישו 2 להיסטוריית תמלולים הקישו 3",
-        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה בלתי צפויה במערכת אנא נסו שוב מאוחר יותר שלום ותודה",
-        INVALID_CHOICE: "הבחירה שגויה הנכם מועברים לתפריט הראשי",
-        
-        NEW_CHAT_INITIAL: "אנא הקליטו את שאלתכם לאחר הצליל בסיום הקישו סולמית",
-        NO_CHAT_HISTORY: "אין לכם היסטוריית שיחות במערכת הנכם מועברים לתפריט הראשי",
-        CHAT_HISTORY_PREFIX: "תפריט היסטוריית שיחות ",
-        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7 לחזרה לתפריט הראשי הקישו 8",
-        CHAT_PLAYBACK_PREFIX: "היסטוריית שיחה מתחילה ",
-        
-        NEW_TRANSCRIPTION_INITIAL: "אנא הקליטו את הטקסט לתמלול לאחר הצליל בסיום הקישו סולמית",
-        APPEND_TRANSCRIPTION: "אנא הקליטו את המשך הטקסט לאחר הצליל בסיום הקישו סולמית",
+        NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל בסיום הקישו סולמית",
+        NEW_TRANSCRIPTION_RECORD: "אנא הקליטו את הטקסט לתמלול לאחר הצליל בסיום הקישו סולמית",
+        APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל בסיום הקישו סולמית",
+        NO_HISTORY: "אין לכם היסטוריית שיחות במערכת הנכם מועברים לשיחה חדשה",
         NO_TRANS_HISTORY: "אין לכם היסטוריית תמלולים במערכת הנכם מועברים לתפריט הראשי",
-        TRANS_HISTORY_PREFIX: "תפריט היסטוריית תמלולים ",
-        TRANS_ACTION_MENU: "לשמיעה חוזרת הקישו 1 להקלטה מחדש הקישו 2 להקלטת המשך הקישו 3 לשמירת התמלול הקישו 4",
-        TRANS_SAVED_SUCCESS: "התמלול נשמר בהצלחה הנכם מועברים לתפריט הראשי",
-        TRANS_PLAYBACK_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7 לשליחת התמלול לאימייל הקישו 9 לחזרה לתפריט הראשי הקישו 8",
-        
-        EMAIL_KEYBOARD_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת בסיום הקישו סולמית",
+        HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות ",
+        TRANS_HISTORY_MENU_PREFIX: "תפריט היסטוריית תמלולים ",
+        MENU_SUFFIX: " לחזרה לתפריט הראשי הקישו 0",
+        INVALID_CHOICE: "הבחירה שגויה הנכם מועברים לתפריט הראשי",
+        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7 לחזרה לתפריט הראשי הקישו 8",
+        TRANS_MENU: "לשמיעה חוזרת הקישו 1 להקלטה מחדש הקישו 2 להקלטת המשך הקישו 3 לשמירת התמלול הקישו 4",
+        TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7 לשליחת התמלול לאימייל הקישו 9 לחזרה לתפריט הראשי הקישו 8",
+        EMAIL_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת בסיום הקישו סולמית",
         EMAIL_SUCCESS: "האימייל נשלח בהצלחה שלום ותודה",
         SHARE_SUCCESS: "קובץ התמלול נוצר בהצלחה הנכם מועברים לתיקיית השיתוף",
         SHARE_FAILED: "אירעה שגיאה ביצירת קובץ השיתוף הנכם מועברים לתפריט הראשי",
-        
-        MENU_SUFFIX_0: " לחזרה לתפריט הראשי הקישו 0",
-        MENU_SUFFIX_8: " לחזרה לתפריט הראשי הקישו 8",
-        
+        TRANS_SAVED_SUCCESS: "התמלול נשמר בהצלחה הנכם מועברים לתפריט הראשי",
+        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה בלתי צפויה במערכת אנא נסו שוב מאוחר יותר שלום ותודה",
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:"
     },
@@ -78,17 +71,14 @@ const SYSTEM_CONSTANTS = {
         ENTER_ID: 'ApiEnterID',
         CALL_ID: 'ApiCallId',
         HANGUP: 'hangup',
-        
         MENU_CHOICE: 'StateMainMenuChoice',
-        
-        CHAT_USER_AUDIO: 'StateChatUserAudio',
-        CHAT_HISTORY_SELECTION: 'StateChatHistorySelection',
-        CHAT_POST_ANSWER_ACTION: 'StateChatPostAnswerAction',
-        
+        USER_AUDIO: 'StateChatUserAudio',
+        HISTORY_CHOICE: 'StateChatHistorySelection',
+        ACTION_CHOICE: 'StateChatPostAnswerAction',
         TRANS_AUDIO: 'StateTransUserAudio',
         TRANS_APPEND_AUDIO: 'StateTransAppendAudio',
         TRANS_MENU_CHOICE: 'StateTransDraftMenu',
-        TRANS_HISTORY_SELECTION: 'StateTransHistorySelection',
+        TRANS_HISTORY_CHOICE: 'StateTransHistorySelection',
         TRANS_ACTION_CHOICE: 'StateTransHistoryAction',
         USER_EMAIL_INPUT: 'StateTransEmailInput'
     }
@@ -120,10 +110,10 @@ class Logger {
     static info(context, message) { console.log(`[INFO][${this.getTimestamp()}] [${context}] ${message}`); }
     static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}] [${context}] ${message}`); }
     static error(context, message, errorObj = null) {
-        console.error(`[ERROR][${this.getTimestamp()}][${context}] ${message}`);
+        console.error(`[ERROR][${this.getTimestamp()}] [${context}] ${message}`);
         if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
     }
-    static debug(context, message) { console.debug(`[DEBUG][${this.getTimestamp()}] [${context}] ${message}`); }
+    static debug(context, message) { console.debug(`[DEBUG][${this.getTimestamp()}][${context}] ${message}`); }
 }
 
 // ============================================================================
@@ -136,17 +126,11 @@ class ConfigManager {
         this.CALL2ALL_TOKEN = process.env.CALL2ALL_TOKEN || '';
         this.BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || '';
         this.currentKeyIndex = 0;
-        this.validateConfiguration();
     }
 
     parseGeminiKeys(keysString) {
         if (!keysString) return[];
         return keysString.split(',').map(key => key.trim()).filter(key => key.length > 0);
-    }
-
-    validateConfiguration() {
-        if (this.GEMINI_KEYS.length === 0) Logger.warn("ConfigManager", "GEMINI_KEYS is missing.");
-        if (!this.CALL2ALL_TOKEN) Logger.warn("ConfigManager", "CALL2ALL_TOKEN is missing.");
     }
 
     getNextGeminiKey() {
@@ -200,7 +184,7 @@ class RetryHelper {
 }
 
 // ============================================================================
-// --- SECTION 7: VERCEL BLOB STORAGE (FIXED FOR PUBLIC ACCESS) ---
+// --- SECTION 7: VERCEL BLOB STORAGE (ENFORCING PRIVATE ACCESS) ---
 // ============================================================================
 
 class UserRepository {
@@ -216,7 +200,11 @@ class UserRepository {
             const { blobs } = await list({ prefix: filePath, token: AppConfig.BLOB_TOKEN });
             if (!blobs || blobs.length === 0) return this.generateDefaultProfile();
 
-            const response = await fetch(blobs[0].url);
+            // Authorization Header is MANDATORY for private blobs
+            const response = await fetch(blobs[0].url, {
+                headers: { Authorization: `Bearer ${AppConfig.BLOB_TOKEN}` }
+            });
+            
             if (!response.ok) throw new StorageAPIError(`Fetch failed: ${response.status}`);
             return this.validateProfile(await response.json());
         };
@@ -234,9 +222,9 @@ class UserRepository {
         const filePath = this._getUserFilePath(phone);
         
         const saveOperation = async () => {
-            // FIX: Explicitly forcing public access as per Vercel logs
+            // EXPLICITLY SETTING PRIVATE ACCESS
             await put(filePath, JSON.stringify(profileData), { 
-                access: 'public', 
+                access: 'private', 
                 addRandomSuffix: false,
                 token: AppConfig.BLOB_TOKEN
             });
@@ -423,11 +411,10 @@ class YemotResponseCompiler {
         return this;
     }
 
-    // FIX: Unique filename generation to prevent looping
-    requestAudioRecord(text, varName) {
+    // FIXED: Ensured `varName` is properly injected here to avoid `undefined` in Yemot logs
+    requestAudioRecord(text, varName, callId) {
         const cleanPrompt = YemotTextSanitizer.sanitizeForTTS(text);
-        // Using a timestamp to ensure unique filenames on every request
-        const fileName = `rec_${Date.now()}`;
+        const fileName = `rec_${callId}_${Date.now()}`;
         this.commands.push(`read=t-${cleanPrompt}=${varName},no,record,${SYSTEM_CONSTANTS.YEMOT_PATHS.RECORDINGS_DIR},${fileName},no,yes,no,1,120`);
         return this;
     }
@@ -453,7 +440,7 @@ export default async function handler(req, res) {
     try {
         Logger.info("Gateway", `New request incoming [${req.method}]`);
 
-        // Parameter extraction
+        // Parameter Extraction
         let rawBody = {};
         if (req.method === 'POST') {
             if (typeof req.body === 'string') {
@@ -473,7 +460,7 @@ export default async function handler(req, res) {
         const callId = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.CALL_ID) || `sim_${Date.now()}`;
         const isHangup = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.HANGUP) === 'yes';
 
-        // State Machine Trigger Extraction
+        // Custom Key Extraction (To find current State)
         const allKeys = Object.keys(query);
         const businessKeys = allKeys.filter(k => !k.startsWith('Api') && k !== 'token' && k !== SYSTEM_CONSTANTS.YEMOT_PARAMS.HANGUP);
         const triggerKey = businessKeys.length > 0 ? businessKeys[businessKeys.length - 1] : null;
@@ -481,14 +468,14 @@ export default async function handler(req, res) {
 
         Logger.info("State Machine", `Trigger: [${triggerKey}] = [${triggerValue}]`);
 
-        // Handle Hangup with Pending Audio
+        // Hangup Interceptor (Process Audio Before Exit)
         let pendingAudio = false;
         if (isHangup) {
             if (triggerValue && triggerValue.includes('.wav') && 
                (triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO || 
                 triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO || 
                 triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_APPEND_AUDIO)) {
-                Logger.info("Gateway", "Hangup detected WITH pending audio. Processing before exit.");
+                Logger.info("Gateway", "Hangup detected WITH pending audio. Processing before graceful exit.");
                 pendingAudio = true;
             } else {
                 return sendResponse(res, "noop=hangup_acknowledged");
@@ -505,7 +492,7 @@ export default async function handler(req, res) {
         }
         else if (triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.ACTION_CHOICE) {
             if (triggerValue === '7') {
-                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO);
+                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO, callId);
             } else {
                 DomainControllers.serveMainMenu(ivrCompiler);
             }
@@ -523,7 +510,7 @@ export default async function handler(req, res) {
             await DomainControllers.processTransAudio(phone, triggerValue, ivrCompiler, true);
         }
         else if (triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_MENU_CHOICE) {
-            await DomainControllers.handleTransDraftMenu(phone, triggerValue, ivrCompiler);
+            await DomainControllers.handleTransDraftMenu(phone, callId, triggerValue, ivrCompiler);
         }
 
         // --- 3. TRANSCRIPTION HISTORY MODULE (Menu 3) ---
@@ -535,15 +522,15 @@ export default async function handler(req, res) {
             await DomainControllers.handleTransHistoryActions(phone, triggerValue, ivrCompiler);
         }
         else if (triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_EMAIL_INPUT) {
-            Logger.info("EmailService", `Mock Email Sent to ${triggerValue}`);
+            Logger.info("EmailService", `Simulated email send to ${triggerValue}`);
             ivrCompiler.playTTS(SYSTEM_CONSTANTS.PROMPTS.EMAIL_SUCCESS);
             DomainControllers.serveMainMenu(ivrCompiler);
         }
 
         // --- 4. MAIN MENU ---
         else if (triggerKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.MENU_CHOICE) {
-            if (triggerValue === '0') await DomainControllers.initNewTranscription(phone, ivrCompiler);
-            else if (triggerValue === '1') await DomainControllers.initNewChat(phone, ivrCompiler);
+            if (triggerValue === '0') await DomainControllers.initNewTranscription(phone, callId, ivrCompiler);
+            else if (triggerValue === '1') await DomainControllers.initNewChat(phone, callId, ivrCompiler);
             else if (triggerValue === '2') await DomainControllers.initChatHistoryMenu(phone, ivrCompiler);
             else if (triggerValue === '3') await DomainControllers.initTransHistoryMenu(phone, ivrCompiler);
             else DomainControllers.serveMainMenu(ivrCompiler);
@@ -577,13 +564,13 @@ class DomainControllers {
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.YEMOT_PARAMS.MENU_CHOICE, 1, 1);
     }
 
-    static async initNewChat(phone, ivrCompiler) {
+    static async initNewChat(phone, callId, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         const newSessionId = `chat_${Date.now()}`;
         profile.chats.push({ id: newSessionId, date: new Date().toISOString(), messages:[] });
         profile.currentChatId = newSessionId;
         await UserRepository.saveProfile(phone, profile);
-        ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO);
+        ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO, callId);
     }
 
     static async processChatAudio(phone, callId, audioPath, ivrCompiler) {
@@ -646,11 +633,11 @@ class DomainControllers {
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.YEMOT_PARAMS.ACTION_CHOICE, 1, 1);
     }
 
-    static async initNewTranscription(phone, ivrCompiler) {
+    static async initNewTranscription(phone, callId, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         profile.tempTranscription = "";
         await UserRepository.saveProfile(phone, profile);
-        ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO);
+        ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO, callId);
     }
 
     static async processTransAudio(phone, audioPath, ivrCompiler, isAppend) {
@@ -665,7 +652,7 @@ class DomainControllers {
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_MENU_CHOICE, 1, 1);
     }
 
-    static async handleTransDraftMenu(phone, choice, ivrCompiler) {
+    static async handleTransDraftMenu(phone, callId, choice, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         
         switch(choice) {
@@ -674,10 +661,10 @@ class DomainControllers {
                 ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_MENU_CHOICE, 1, 1);
                 break;
             case '2':
-                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO);
+                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO, callId);
                 break;
             case '3':
-                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_APPEND_AUDIO);
+                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_APPEND_AUDIO, callId);
                 break;
             case '4':
                 if (profile.tempTranscription) {
@@ -685,8 +672,9 @@ class DomainControllers {
                     profile.tempTranscription = "";
                     await UserRepository.saveProfile(phone, profile);
                     ivrCompiler.playTTS(SYSTEM_CONSTANTS.PROMPTS.TRANS_SAVED_SUCCESS);
+                } else {
+                    this.serveMainMenu(ivrCompiler);
                 }
-                this.serveMainMenu(ivrCompiler);
                 break;
             default:
                 this.serveMainMenu(ivrCompiler);
