@@ -1,18 +1,8 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini.
- * @version 9.0.0 (Timestamped State Machine & Adaptive Blob Storage)
+ * @version 10.0.0 (Vercel Blob Public Enforcement & Ultimate Stability)
  * @author Custom AI Assistant
- * 
- * FEATURES IMPLEMENTED:
- * 1. Single Extension (type=api).
- * 2. Strict Yemot Protocol Formatting.
- * 3. Exclusive Model: gemini-3.1-flash-lite-preview.
- * 4. Vercel Blob Storage: Adaptive mode (omitted access param) to support Private stores natively.
- * 5. Timestamped State Machine: Eliminates all infinite loops caused by Yemot's URL appending.
- * 6. Advanced Transcriptions (Menu 0): Raw transcription, append, save.
- * 7. Chat (Menu 1): JSON structured request for Q&A history.
- * 8. Shared Transcriptions (Menu 3): Create TTS file in Yemot, Email integration.
  */
 
 import { put, list } from '@vercel/blob';
@@ -54,26 +44,26 @@ const SYSTEM_CONSTANTS = {
         BACKOFF_MULTIPLIER: 2
     },
     PROMPTS: {
-        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית. לתמלול מדויק הקישו 0. לשיחת צ'אט הקישו 1. להיסטוריית צ'אט הקישו 2. להיסטוריית תמלולים הקישו 3.",
-        NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
-        NEW_TRANSCRIPTION_RECORD: "אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
-        APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל. בסיום הקישו סולמית.",
-        NO_CHAT_HISTORY: "אין לכם היסטוריית שיחות במערכת. הנכם מועברים לשיחה חדשה.",
-        NO_TRANS_HISTORY: "אין לכם היסטוריית תמלולים במערכת. הנכם מועברים לתפריט הראשי.",
-        CHAT_HISTORY_PREFIX: "תפריט היסטוריית שיחות. ",
-        TRANS_HISTORY_PREFIX: "תפריט היסטוריית תמלולים. ",
-        MENU_SUFFIX_0: "לחזרה לתפריט הראשי הקישו 0.",
-        MENU_SUFFIX_8: "לחזרה לתפריט הראשי הקישו 8.",
-        INVALID_CHOICE: "הבחירה שגויה. הנכם מועברים לתפריט הראשי.",
-        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
-        TRANS_MENU: "לשמיעה חוזרת הקישו 1. להקלטה מחדש הקישו 2. להקלטת המשך הקישו 3. לשמירת התמלול הקישו 4.",
-        TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7. לשליחת התמלול לאימייל הקישו 9. לחזרה לתפריט הראשי הקישו 8.",
-        EMAIL_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת. בסיום הקישו סולמית.",
-        EMAIL_SUCCESS: "האימייל נשלח בהצלחה. שלום ותודה.",
-        SHARE_SUCCESS: "קובץ התמלול נוצר בהצלחה. הנכם מועברים לתיקיית השיתוף.",
-        SHARE_FAILED: "אירעה שגיאה ביצירת קובץ השיתוף. הנכם מועברים לתפריט הראשי.",
-        TRANS_SAVED_SUCCESS: "התמלול נשמר בהצלחה. הנכם מועברים לתפריט הראשי.",
-        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה בלתי צפויה במערכת. אנא נסו שוב מאוחר יותר. שלום ותודה.",
+        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית לתמלול מדויק הקישו 0 לשיחת צ'אט הקישו 1 להיסטוריית צ'אט הקישו 2 להיסטוריית תמלולים הקישו 3",
+        NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל בסיום הקישו סולמית",
+        NEW_TRANSCRIPTION_RECORD: "אנא הקליטו את הטקסט לתמלול לאחר הצליל בסיום הקישו סולמית",
+        APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל בסיום הקישו סולמית",
+        NO_HISTORY: "אין לכם היסטוריית שיחות במערכת הנכם מועברים לתפריט הראשי",
+        NO_TRANS_HISTORY: "אין לכם היסטוריית תמלולים במערכת הנכם מועברים לתפריט הראשי",
+        HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות ",
+        TRANS_HISTORY_PREFIX: "תפריט היסטוריית תמלולים ",
+        MENU_SUFFIX_0: " לחזרה לתפריט הראשי הקישו 0",
+        MENU_SUFFIX_8: " לחזרה לתפריט הראשי הקישו 8",
+        INVALID_CHOICE: "הבחירה שגויה הנכם מועברים לתפריט הראשי",
+        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7 לחזרה לתפריט הראשי הקישו 8",
+        TRANS_MENU: "לשמיעה חוזרת הקישו 1 להקלטה מחדש הקישו 2 להקלטת המשך הקישו 3 לשמירת התמלול הקישו 4",
+        TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7 לשליחת התמלול לאימייל הקישו 9 לחזרה לתפריט הראשי הקישו 8",
+        EMAIL_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת בסיום הקישו סולמית",
+        EMAIL_SUCCESS: "האימייל נשלח בהצלחה שלום ותודה",
+        SHARE_SUCCESS: "קובץ התמלול נוצר בהצלחה הנכם מועברים לתיקיית השיתוף",
+        SHARE_FAILED: "אירעה שגיאה ביצירת קובץ השיתוף הנכם מועברים לתפריט הראשי",
+        TRANS_SAVED_SUCCESS: "התמלול נשמר בהצלחה הנכם מועברים לתפריט הראשי",
+        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה בלתי צפויה במערכת אנא נסו שוב מאוחר יותר שלום ותודה",
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:"
     },
@@ -127,7 +117,7 @@ class Logger {
         console.error(`[ERROR][${this.getTimestamp()}] [${context}] ${message}`);
         if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
     }
-    static debug(context, message) { console.debug(`[DEBUG][${this.getTimestamp()}] [${context}] ${message}`); }
+    static debug(context, message) { console.debug(`[DEBUG][${this.getTimestamp()}][${context}] ${message}`); }
 }
 
 // ============================================================================
@@ -201,7 +191,7 @@ class RetryHelper {
 }
 
 // ============================================================================
-// --- SECTION 7: VERCEL BLOB STORAGE (ADAPTIVE MODE) ---
+// --- SECTION 7: VERCEL BLOB STORAGE (FIXED FOR PUBLIC ACCESS) ---
 // ============================================================================
 
 class UserRepository {
@@ -239,11 +229,10 @@ class UserRepository {
         const filePath = this._getUserFilePath(phone);
         
         const saveOperation = async () => {
-            // FIX: We deliberately OMIT the `access` parameter!
-            // This forces the Vercel Blob SDK to use the default access level of the store.
-            // If the store is private, it saves privately. If public, it saves publicly.
-            // This prevents the SDK from throwing validation errors.
+            // FIX: EXPLICITLY SETTING PUBLIC ACCESS!
+            // The logs clearly demand: "access must be 'public'". We comply.
             await put(filePath, JSON.stringify(profileData), { 
+                access: 'public', 
                 addRandomSuffix: false,
                 token: AppConfig.BLOB_TOKEN
             });
@@ -254,6 +243,7 @@ class UserRepository {
             Logger.info("UserRepository", `Profile saved for ${phone}.`);
         } catch (error) {
             Logger.error("UserRepository", `Failed to save user ${phone}`, error);
+            throw error; // Re-throw to trace errors higher up if needed
         }
     }
 
@@ -297,7 +287,7 @@ class YemotAPIService {
         };
 
         try {
-            return await RetryHelper.withRetry(downloadTask, 2, 1000, "YemotAPI.downloadAudio");
+            return await RetryHelper.withRetry(downloadTask, 2, 1000, "YemotAudioDownload");
         } catch (error) {
             throw new YemotAPIError("Failed to download audio.", error);
         }
@@ -384,15 +374,17 @@ class GeminiAIService {
 
         const rawResponse = await this.callGemini(payload);
         try {
-            let cleanJson = rawResponse.trim();
-            if (cleanJson.startsWith("```json")) cleanJson = cleanJson.substring(7, cleanJson.length - 3).trim();
-            else if (cleanJson.startsWith("```")) cleanJson = cleanJson.substring(3, cleanJson.length - 3).trim();
-            const parsed = JSON.parse(cleanJson);
+            let cleanJsonStr = rawResponse.trim();
+            if (cleanJsonStr.startsWith("```json")) cleanJsonStr = cleanJsonStr.substring(7, cleanJsonStr.length - 3).trim();
+            else if (cleanJsonStr.startsWith("```")) cleanJsonStr = cleanJsonStr.substring(3, cleanJsonStr.length - 3).trim();
+            
+            const parsedData = JSON.parse(cleanJsonStr);
             return {
-                transcription: YemotTextSanitizer.sanitizeForTTS(parsed.transcription || "לא זוהה דיבור"),
-                answer: YemotTextSanitizer.sanitizeForTTS(parsed.answer || "לא הצלחתי לגבש תשובה")
+                transcription: YemotTextSanitizer.sanitizeForTTS(parsedData.transcription || "לא זוהה דיבור"),
+                answer: YemotTextSanitizer.sanitizeForTTS(parsedData.answer || "לא הצלחתי לגבש תשובה")
             };
         } catch (e) {
+            Logger.error("GeminiAPI", "Failed to parse Chat JSON response.", e);
             return { transcription: "שגיאת תמלול", answer: YemotTextSanitizer.sanitizeForTTS(rawResponse) };
         }
     }
@@ -402,7 +394,7 @@ class GeminiAIService {
      */
     static async processTranscriptionOnly(base64Audio) {
         const prompt = `תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. 
-        החזר אך ורק את הטקסט המתומלל. ללא פרשנות, ללא הקדמה וללא סימני פיסוק כלל.`;
+        החזר אך ורק את הטקסט המתומלל ללא פרשנות, ללא הקדמה וללא סימני פיסוק כלל.`;
         
         const payload = {
             contents:[{ role: "user", parts:[{ text: prompt }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }],
@@ -430,7 +422,7 @@ class YemotResponseCompiler {
     }
 
     /**
-     * מבקש הקשה. משתמש ב-varName הכולל חותמת זמן!
+     * מבקש הקשה. משתמש ב-varName הכולל חותמת זמן למניעת לופים!
      */
     requestDigits(text, baseVarName, min = 1, max = 1) {
         const cleanPrompt = YemotTextSanitizer.sanitizeForTTS(text);
@@ -447,7 +439,7 @@ class YemotResponseCompiler {
     }
 
     /**
-     * מבקש הקלטה. משתמש ב-varName הכולל חותמת זמן!
+     * מבקש הקלטה. משתמש ב-varName הכולל חותמת זמן למניעת לופים!
      */
     requestAudioRecord(text, baseVarName, callId) {
         const cleanPrompt = YemotTextSanitizer.sanitizeForTTS(text);
@@ -478,7 +470,7 @@ export default async function handler(req, res) {
     try {
         Logger.info("Gateway", `New request incoming [${req.method}]`);
 
-        // חילוץ פרמטרים מכל סוגי ה-Requests
+        // פיענוח פרמטרים מכל סוגי ה-Requests
         let rawBody = {};
         if (req.method === 'POST') {
             if (typeof req.body === 'string') {
@@ -507,14 +499,13 @@ export default async function handler(req, res) {
         let pendingAudioOnHangup = false;
 
         for (const [key, val] of Object.entries(query)) {
-            // אנו מחפשים רק פרמטרים שמתחילים ב- State_ (שהגדרנו)
+            // אנו מחפשים רק פרמטרים שמתחילים ב- State_ (שהגדרנו במערכת)
             if (key.startsWith('State_')) {
-                const parts = key.split('_'); //['State', 'BaseName', '17123456789']
+                const parts = key.split('_'); // e.g.,['State', 'MainMenuChoice', '17123456789']
                 if (parts.length >= 3) {
                     const timestamp = parseInt(parts[parts.length - 1], 10);
                     if (!isNaN(timestamp) && timestamp > highestTimestamp) {
                         highestTimestamp = timestamp;
-                        // חיבור מחדש של הבסיס למקרה שהיה לו קו תחתון בשם
                         triggerBaseKey = parts.slice(0, parts.length - 1).join('_'); 
                         triggerValue = Array.isArray(val) ? val[val.length - 1] : val;
                     }
@@ -522,9 +513,9 @@ export default async function handler(req, res) {
             }
         }
 
-        Logger.info("State Machine", `Evaluated Current State: [${triggerBaseKey}] = [${triggerValue}]`);
+        Logger.info("State Machine", `Evaluated Current State: [${triggerBaseKey}] =[${triggerValue}]`);
 
-        // יירוט ניתוק - הצלת נתונים (אודיו)
+        // יירוט ניתוק - הצלת נתונים (אודיו שטרם נשמר במסד הנתונים)
         if (isHangup) {
             if (triggerValue && triggerValue.includes('.wav') && 
                (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO || 
@@ -594,7 +585,7 @@ export default async function handler(req, res) {
             DomainControllers.serveMainMenu(ivrCompiler);
         }
 
-        // חסימת מענה IVR אם המשתמש כבר ניתק 
+        // חסימת מענה IVR אם המשתמש כבר ניתק (ורק הצלנו את הנתונים שלו)
         if (pendingAudioOnHangup) {
             return sendResponse(res, "noop=hangup_acknowledged");
         }
@@ -704,7 +695,7 @@ class DomainControllers {
         profile.tempTranscription = isAppend ? `${profile.tempTranscription} ${text}` : text;
         await UserRepository.saveProfile(phone, profile);
 
-        ivrCompiler.playTTS(`התמלול הוא: ${profile.tempTranscription}`);
+        ivrCompiler.playTTS(`התמלול הוא ${profile.tempTranscription}`);
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
     }
 
@@ -768,8 +759,8 @@ class DomainControllers {
         profile.currentTransIndex = idx;
         await UserRepository.saveProfile(phone, profile);
 
-        ivrCompiler.playTTS(`התמלול הוא: ${recents[idx].text}`);
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
+        ivrCompiler.playTTS(`התמלול הוא ${recents[idx].text}`);
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_PLAYBACK_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
     }
 
     static async handleTransHistoryActions(phone, choice, ivrCompiler) {
