@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System - Yemot HaMashiach & Google Gemini AI Integration
- * @version 6.0.0 (Enterprise Architecture - Zero Downtime)
+ * @version 6.1.0 (Enterprise Architecture - Zero Downtime & Reference Fix)
  * @author Custom AI Assistant
  * 
  * ARCHITECTURE OVERVIEW:
@@ -12,7 +12,7 @@
  * 1. Single Extension Routing (type=api). All logic handled purely via Node.js Serverless Function.
  * 2. Strict Yemot Protocol Formatting: Uses `=` and `&` exclusively. Zero newlines in responses.
  * 3. Exclusive AI Model: gemini-3.1-flash-lite-preview.
- * 4. Vercel Blob Storage: Fully isolated per-user JSON datastores, handling disconnect persistency.
+ * 4. Vercel Blob Storage: Fully isolated per-user JSON datastores, handling disconnect persistency. (Public Access)
  * 5. API Key Rotation: Fault-tolerant round-robin mechanism for Gemini keys.
  * 6. Advanced Transcriptions (Menu 0): Record, Append, Review, Save to DB.
  * 7. Advanced Chat (Menu 1): Audio -> Gemini (JSON Output: Transcription + AI Answer) -> Save -> Play.
@@ -73,7 +73,7 @@ const SYSTEM_CONSTANTS = {
         
         // Chat Flow (Menu 1 & 2)
         NEW_CHAT_INITIAL: "אנא הקליטו את שאלתכם לאחר הצליל בסיום הקישו סולמית",
-        NO_CHAT_HISTORY: "אין לכם היסטוריית שיחות במערכת הנכם מועברים לתפריט הראשי",
+        NO_CHAT_HISTORY: "אין לכם היסטוריית שיחות במערכת הנכם מועברים לשיחה חדשה",
         CHAT_HISTORY_PREFIX: "תפריט היסטוריית שיחות ",
         CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7 לחזרה לתפריט הראשי הקישו 8",
         CHAT_PLAYBACK_PREFIX: "היסטוריית שיחה מתחילה ",
@@ -682,7 +682,7 @@ class UserProfile {
 
 /**
  * Handles all CRUD operations against Vercel Blob Storage.
- * Designed to handle Public Blob storage configuration.
+ * Designed to handle Public Blob storage configuration securely.
  */
 class UserRepository {
     
@@ -693,7 +693,7 @@ class UserRepository {
      * @private
      */
     static _getUserFilePath(phone) {
-        return `${SYSTEM_CONSTANTS.YEMOT.BLOB_USERS_DIR}${phone}.json`;
+        return `${SYSTEM_CONSTANTS.YEMOT_PATHS.USERS_DB_DIR}${phone}.json`;
     }
 
     /**
@@ -713,7 +713,7 @@ class UserRepository {
         const fetchOperation = async () => {
             Logger.debug("UserRepository", `Fetching blob list for prefix: ${filePath}`);
             
-            // Note: Even for public blobs, passing the token during listing is good practice
+            // Note: For public blobs, passing the token is optional but safe
             const { blobs } = await list({ prefix: filePath, token: AppConfig.getBlobToken() });
             
             if (!blobs || blobs.length === 0) {
@@ -762,6 +762,7 @@ class UserRepository {
             const jsonString = JSON.stringify(profileData);
             Logger.debug("UserRepository", `Writing ${Buffer.byteLength(jsonString, 'utf8')} bytes to Blob: ${filePath}`);
             
+            // Explicitly requesting public access based on verified logs
             await put(filePath, jsonString, { 
                 access: 'public', 
                 addRandomSuffix: false, // Prevents creating duplicate files for the same user
@@ -930,14 +931,14 @@ class GeminiAIService {
         const keys = AppConfig.getAvailableGeminiKeys();
         let lastEncounteredError = null;
 
-        Logger.info("GeminiAIService", `Executing AI Generation. Target Model: ${SYSTEM_CONSTANTS.YEMOT.GEMINI_MODEL}. Keys in rotation pool: ${keys.length}`);
+        Logger.info("GeminiAIService", `Executing AI Generation. Target Model: ${SYSTEM_CONSTANTS.MODELS.PRIMARY_GEMINI_MODEL}. Keys in rotation pool: ${keys.length}`);
 
         // Iterate through keys until one succeeds
         for (let i = 0; i < keys.length; i++) {
             const apiKey = AppConfig.getNextGeminiKey();
             
             try {
-                const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${SYSTEM_CONSTANTS.YEMOT.GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${SYSTEM_CONSTANTS.MODELS.PRIMARY_GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(endpointUrl, {
                     method: 'POST',
@@ -1006,8 +1007,8 @@ class GeminiAIService {
             const parsedData = JSON.parse(cleanJsonStr);
             
             return {
-                transcription: TextSanitizer.sanitizeForTTS(parsedData.transcription || "לא הצלחתי לזהות מילים בקובץ"),
-                answer: TextSanitizer.sanitizeForTTS(parsedData.answer || "לא הצלחתי לגבש תשובה מתאימה")
+                transcription: YemotTextSanitizer.sanitizeForTTS(parsedData.transcription || "לא הצלחתי לזהות מילים בקובץ"),
+                answer: YemotTextSanitizer.sanitizeForTTS(parsedData.answer || "לא הצלחתי לגבש תשובה מתאימה")
             };
             
         } catch (error) {
@@ -1015,7 +1016,7 @@ class GeminiAIService {
             // Fallback: If JSON parsing fails completely, assume the whole text is the answer
             return {
                 transcription: "תמלול אודיו לא הצליח עקב שגיאת פורמט",
-                answer: TextSanitizer.sanitizeForTTS("אירעה שגיאה בהבנת המבנה של התשובה אך ננסה להמשיך")
+                answer: YemotTextSanitizer.sanitizeForTTS("אירעה שגיאה בהבנת המבנה של התשובה אך ננסה להמשיך")
             };
         }
     }
@@ -1038,7 +1039,7 @@ class GeminiAIService {
         const payload = this._buildPayload(systemInstruction, base64Audio,[], false);
         const rawTextResponse = await this._executeGenerationWithRotation(payload);
         
-        return TextSanitizer.sanitizeForTTS(rawTextResponse);
+        return YemotTextSanitizer.sanitizeForTTS(rawTextResponse);
     }
 }
 
@@ -1063,7 +1064,7 @@ class YemotResponseCompiler {
      */
     _prepareTTS(text) {
         if (!text) return "";
-        return TextSanitizer.sanitizeForTTS(text);
+        return YemotTextSanitizer.sanitizeForTTS(text);
     }
 
     /**
@@ -1234,9 +1235,9 @@ export default async function handler(req, res) {
         };
 
         // 2. Identify Core Call Metrics
-        const callerPhone = extractLatestParam(SYSTEM_CONSTANTS.PARAMS.PHONE) || extractLatestParam(SYSTEM_CONSTANTS.PARAMS.ENTER_ID) || 'Unknown_Caller';
-        const uniqueCallId = extractLatestParam(SYSTEM_CONSTANTS.PARAMS.CALL_ID) || `SIMULATED_${Date.now()}`;
-        const isClientHangup = extractLatestParam(SYSTEM_CONSTANTS.PARAMS.HANGUP) === 'yes';
+        const callerPhone = extractLatestParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.PHONE) || extractLatestParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.ENTER_ID) || 'Unknown_Caller';
+        const uniqueCallId = extractLatestParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.CALL_ID) || `SIMULATED_${Date.now()}`;
+        const isClientHangup = extractLatestParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.HANGUP) === 'yes';
 
         Logger.debug("Call_Metrics", `Caller: ${callerPhone} | CallID: ${uniqueCallId} | IsHangup: ${isClientHangup}`);
 
@@ -1246,7 +1247,7 @@ export default async function handler(req, res) {
         const businessLogicKeys = allReceivedKeys.filter(key => 
             !key.startsWith('Api') && 
             key !== 'token' && 
-            key !== SYSTEM_CONSTANTS.PARAMS.HANGUP
+            key !== SYSTEM_CONSTANTS.YEMOT_PARAMS.HANGUP
         );
         
         // The *last* key in the array represents the most recent interaction state.
@@ -1267,7 +1268,7 @@ export default async function handler(req, res) {
             Logger.info("Call_Lifecycle", `Hangup signal detected for caller ${callerPhone}.`);
             
             // Check if there's unprocessed audio attached to this hangup
-            if ((triggerStateKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO || triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_AUDIO || triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_APPEND_AUDIO) 
+            if ((triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO || triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO || triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_APPEND_AUDIO) 
                 && triggerStateValue && triggerStateValue.includes('.wav')) {
                 
                 Logger.info("Call_Lifecycle", "Detected pending audio chunk attached to hangup. Processing before terminating.");
@@ -1287,42 +1288,42 @@ export default async function handler(req, res) {
         // ========================================================================
 
         // --- DOMAIN: CHAT (MENU 1) ---
-        if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.USER_AUDIO && triggerStateValue && triggerStateValue.includes('.wav')) {
+        if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_AUDIO && triggerStateValue && triggerStateValue.includes('.wav')) {
             await DomainControllers.processChatInteraction(callerPhone, uniqueCallId, triggerStateValue, ivrResponse);
         }
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.ACTION_CHOICE) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.ACTION_CHOICE) {
             await DomainControllers.handleChatActionMenu(callerPhone, uniqueCallId, triggerStateValue, ivrResponse);
         }
         
         // --- DOMAIN: CHAT HISTORY (MENU 2) ---
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.HISTORY_CHOICE) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.HISTORY_CHOICE) {
             await DomainControllers.handleChatHistorySelection(callerPhone, triggerStateValue, ivrResponse);
         }
         
         // --- DOMAIN: ADVANCED TRANSCRIPTION (MENU 0) ---
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_AUDIO && triggerStateValue && triggerStateValue.includes('.wav')) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_AUDIO && triggerStateValue && triggerStateValue.includes('.wav')) {
             await DomainControllers.processTranscriptionInitial(callerPhone, triggerStateValue, ivrResponse);
         }
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_APPEND_AUDIO && triggerStateValue && triggerStateValue.includes('.wav')) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_APPEND_AUDIO && triggerStateValue && triggerStateValue.includes('.wav')) {
             await DomainControllers.processTranscriptionAppend(callerPhone, triggerStateValue, ivrResponse);
         }
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_MENU_CHOICE) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_MENU_CHOICE) {
             await DomainControllers.handleTranscriptionDraftMenu(callerPhone, uniqueCallId, triggerStateValue, ivrResponse);
         }
         
         // --- DOMAIN: TRANSCRIPTION HISTORY (MENU 3) ---
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_HISTORY_CHOICE) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_HISTORY_CHOICE) {
             await DomainControllers.handleTransHistorySelection(callerPhone, triggerStateValue, ivrResponse);
         }
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.TRANS_ACTION_CHOICE) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.TRANS_ACTION_CHOICE) {
             await DomainControllers.handleTransActionMenu(callerPhone, triggerStateValue, ivrResponse);
         }
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.USER_EMAIL_INPUT) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.USER_EMAIL_INPUT) {
             await DomainControllers.executeEmailSending(callerPhone, triggerStateValue, ivrResponse);
         }
         
         // --- DOMAIN: MAIN MENU DISPATCHER ---
-        else if (triggerStateKey === SYSTEM_CONSTANTS.PARAMS.MENU_CHOICE) {
+        else if (triggerStateKey === SYSTEM_CONSTANTS.YEMOT_PARAMS.MENU_CHOICE) {
             await DomainControllers.dispatchMainMenu(callerPhone, uniqueCallId, triggerStateValue, ivrResponse);
         }
         
