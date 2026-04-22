@@ -1,21 +1,15 @@
 /**
  * @file api/index.js
- * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini.
- * @version 9.0.0 (Timestamped State Machine & Adaptive Blob Storage)
+ * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
+ * @version 15.0.0 (Ultimate Monolith - Pure REST Blob + 60s Timeout Fix)
  * @author Custom AI Assistant
- * 
- * FEATURES IMPLEMENTED:
- * 1. Single Extension (type=api).
- * 2. Strict Yemot Protocol Formatting.
- * 3. Exclusive Model: gemini-3.1-flash-lite-preview.
- * 4. Vercel Blob Storage: Adaptive mode (omitted access param) to support Private stores natively.
- * 5. Timestamped State Machine: Eliminates all infinite loops caused by Yemot's URL appending.
- * 6. Advanced Transcriptions (Menu 0): Raw transcription, append, save.
- * 7. Chat (Menu 1): JSON structured request for Q&A history.
- * 8. Shared Transcriptions (Menu 3): Create TTS file in Yemot, Email integration.
  */
 
-import { put, list } from '@vercel/blob';
+// ============================================================================
+// --- VERCEL SERVERLESS CONFIGURATION ---
+// ============================================================================
+// FIX: This prevents the 10-second timeout that caused Yemot to loop the recording prompt!
+export const maxDuration = 60; // Allow function to run for up to 60 seconds
 
 // ============================================================================
 // --- SECTION 1: SYSTEM CONSTANTS & CONFIGURATION DEFAULTS ---
@@ -40,11 +34,12 @@ const SYSTEM_CONSTANTS = {
         NOT_FOUND: 404,
         INTERNAL_SERVER_ERROR: 500,
         BAD_GATEWAY: 502,
-        SERVICE_UNAVAILABLE: 503
+        SERVICE_UNAVAILABLE: 503,
+        GATEWAY_TIMEOUT: 504
     },
     IVR_DEFAULTS: {
         STANDARD_TIMEOUT: "7",
-        EMAIL_TIMEOUT: "30",
+        EMAIL_TIMEOUT: "40",
         RECORD_MIN_SEC: "1",
         RECORD_MAX_SEC: "120"
     },
@@ -58,9 +53,9 @@ const SYSTEM_CONSTANTS = {
         NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
         NEW_TRANSCRIPTION_RECORD: "אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
         APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל. בסיום הקישו סולמית.",
-        NO_CHAT_HISTORY: "אין לכם היסטוריית שיחות במערכת. הנכם מועברים לשיחה חדשה.",
+        NO_HISTORY: "אין לכם היסטוריית שיחות במערכת. הנכם מועברים לשיחה חדשה.",
         NO_TRANS_HISTORY: "אין לכם היסטוריית תמלולים במערכת. הנכם מועברים לתפריט הראשי.",
-        CHAT_HISTORY_PREFIX: "תפריט היסטוריית שיחות. ",
+        HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות. ",
         TRANS_HISTORY_PREFIX: "תפריט היסטוריית תמלולים. ",
         MENU_SUFFIX_0: "לחזרה לתפריט הראשי הקישו 0.",
         MENU_SUFFIX_8: "לחזרה לתפריט הראשי הקישו 8.",
@@ -77,7 +72,6 @@ const SYSTEM_CONSTANTS = {
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:"
     },
-    // The base string for state keys. A timestamp will be appended to ensure uniqueness.
     STATE_BASES: {
         MENU_CHOICE: 'State_MainMenuChoice',
         CHAT_USER_AUDIO: 'State_ChatUserAudio',
@@ -99,7 +93,7 @@ const SYSTEM_CONSTANTS = {
 };
 
 // ============================================================================
-// --- SECTION 2: ERROR HANDLING ---
+// --- SECTION 2: ERROR HANDLING FRAMEWORK ---
 // ============================================================================
 
 class AppError extends Error {
@@ -116,7 +110,7 @@ class GeminiAPIError extends AppError { constructor(msg, orig) { super(`Gemini A
 class StorageAPIError extends AppError { constructor(msg, orig) { super(`Storage API Error: ${msg}`, 500, orig); } }
 
 // ============================================================================
-// --- SECTION 3: LOGGER SYSTEM ---
+// --- SECTION 3: ADVANCED LOGGER SYSTEM ---
 // ============================================================================
 
 class Logger {
@@ -131,7 +125,7 @@ class Logger {
 }
 
 // ============================================================================
-// --- SECTION 4: CONFIGURATION MANAGER ---
+// --- SECTION 4: ENVIRONMENT CONFIGURATION MANAGER ---
 // ============================================================================
 
 class ConfigManager {
@@ -157,13 +151,12 @@ class ConfigManager {
 const AppConfig = new ConfigManager();
 
 // ============================================================================
-// --- SECTION 5: TEXT SANITIZATION ---
+// --- SECTION 5: TEXT SANITIZATION UTILITIES ---
 // ============================================================================
 
 class YemotTextSanitizer {
     /**
-     * Aggressively cleans text to ensure Yemot TTS engine does not interpret
-     * punctuation as command delimiters. Replaces punctuation with spaces.
+     * פונקציה אגרסיבית למחיקת סימני פיסוק העלולים לשבור את מנגנון ה-HTTP GET/POST של ימות המשיח.
      */
     static sanitizeForTTS(text) {
         if (!text || typeof text !== 'string') return "שגיאת טקסט";
@@ -176,7 +169,7 @@ class YemotTextSanitizer {
 }
 
 // ============================================================================
-// --- SECTION 6: RETRY HELPER ---
+// --- SECTION 6: RETRY LOGIC HELPER ---
 // ============================================================================
 
 class RetryHelper {
@@ -201,8 +194,58 @@ class RetryHelper {
 }
 
 // ============================================================================
-// --- SECTION 7: VERCEL BLOB STORAGE (ADAPTIVE MODE) ---
+// --- SECTION 7: PURE REST VERCEL BLOB STORAGE (BYPASSING SDK) ---
 // ============================================================================
+
+/**
+ * מחלקה זו מנהלת את הגישה ל-Vercel Blob ללא שימוש בספרייה שלהם (@vercel/blob).
+ * זה פותר באופן מוחלט את שגיאות ה- "Cannot use public access on a private store"
+ * שאירעו גם ב-list וגם ב-put. אנו שולטים בהדרים במאה אחוז.
+ */
+class PureVercelBlobREST {
+    /**
+     * קבלת רשימת קבצים לפי תחילית (Prefix) מה-REST API של Vercel
+     */
+    static async listBlobs(prefix) {
+        const url = `https://blob.vercel-storage.com?prefix=${encodeURIComponent(prefix)}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${AppConfig.BLOB_TOKEN}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Blob REST List Error: ${response.status} ${await response.text()}`);
+        }
+        
+        return await response.json();
+    }
+
+    /**
+     * העלאת קובץ ישירות ל-REST API של Vercel, עוקף את חוקי החנות.
+     */
+    static async putBlob(filePath, data) {
+        const url = `https://blob.vercel-storage.com/${filePath}`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'authorization': `Bearer ${AppConfig.BLOB_TOKEN}`,
+                'x-api-version': '7',
+                'x-add-random-suffix': 'false',
+                'content-type': 'application/json'
+                // לא שולחים x-access. השרת פשוט שומר בהתאם להרשאות הבסיס שלו.
+            },
+            body: data
+        });
+
+        if (!response.ok) {
+            throw new Error(`Blob REST Put Error: ${response.status} ${await response.text()}`);
+        }
+        
+        return await response.json();
+    }
+}
 
 class UserRepository {
     static _getUserFilePath(phone) {
@@ -214,11 +257,13 @@ class UserRepository {
         const filePath = this._getUserFilePath(phone);
         
         const fetchOperation = async () => {
-            const { blobs } = await list({ prefix: filePath, token: AppConfig.BLOB_TOKEN });
-            if (!blobs || blobs.length === 0) return this.generateDefaultProfile();
+            const data = await PureVercelBlobREST.listBlobs(filePath);
+            if (!data.blobs || data.blobs.length === 0) {
+                return this.generateDefaultProfile();
+            }
 
-            // Fetch explicitly requires the token in the header for Private stores
-            const response = await fetch(blobs[0].url, {
+            // משיכת התוכן דרך הכתובת הישירה תוך חובת שרשור הטוקן
+            const response = await fetch(data.blobs[0].url, {
                 headers: { Authorization: `Bearer ${AppConfig.BLOB_TOKEN}` }
             });
             
@@ -239,21 +284,15 @@ class UserRepository {
         const filePath = this._getUserFilePath(phone);
         
         const saveOperation = async () => {
-            // FIX: We deliberately OMIT the `access` parameter!
-            // This forces the Vercel Blob SDK to use the default access level of the store.
-            // If the store is private, it saves privately. If public, it saves publicly.
-            // This prevents the SDK from throwing validation errors.
-            await put(filePath, JSON.stringify(profileData), { 
-                addRandomSuffix: false,
-                token: AppConfig.BLOB_TOKEN
-            });
+            await PureVercelBlobREST.putBlob(filePath, JSON.stringify(profileData));
         };
 
         try {
-            await RetryHelper.withRetry(saveOperation, 2, 500, `SaveUser-${phone}`);
-            Logger.info("UserRepository", `Profile saved for ${phone}.`);
+            await RetryHelper.withRetry(saveOperation, 3, 500, `SaveUser-${phone}`);
+            Logger.info("UserRepository", `Profile saved successfully for ${phone}.`);
         } catch (error) {
             Logger.error("UserRepository", `Failed to save user ${phone}`, error);
+            throw error; 
         }
     }
 
@@ -277,7 +316,7 @@ class UserRepository {
 }
 
 // ============================================================================
-// --- SECTION 8: YEMOT API INTEGRATION ---
+// --- SECTION 8: YEMOT API INTEGRATION SERVICES ---
 // ============================================================================
 
 class YemotAPIService {
@@ -292,14 +331,14 @@ class YemotAPIService {
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             
-            if (buffer.length < 500) throw new Error("File too small");
+            if (buffer.length < 500) throw new Error("File too small. Likely an error message text from Yemot.");
             return buffer.toString('base64');
         };
 
         try {
             return await RetryHelper.withRetry(downloadTask, 2, 1000, "YemotAPI.downloadAudio");
         } catch (error) {
-            throw new YemotAPIError("Failed to download audio.", error);
+            throw new YemotAPIError("Failed to download audio from Yemot servers.", error);
         }
     }
 
@@ -312,7 +351,7 @@ class YemotAPIService {
             const response = await fetch(url);
             const result = await response.json();
             
-            if (result.responseStatus !== "OK") throw new Error(`Upload rejected: ${JSON.stringify(result)}`);
+            if (result.responseStatus !== "OK") throw new Error(`Upload rejected by Yemot: ${JSON.stringify(result)}`);
             return SYSTEM_CONSTANTS.YEMOT_PATHS.SHARED_TRANSCRIPTIONS_DIR;
         };
 
@@ -326,7 +365,7 @@ class YemotAPIService {
 }
 
 // ============================================================================
-// --- SECTION 9: GOOGLE GEMINI AI ---
+// --- SECTION 9: GOOGLE GEMINI AI INTEGRATION ---
 // ============================================================================
 
 class GeminiAIService {
@@ -337,7 +376,7 @@ class GeminiAIService {
         for (let i = 0; i < keys.length; i++) {
             const apiKey = AppConfig.getNextGeminiKey();
             try {
-                Logger.info("GeminiAPI", `Calling Gemini model: ${SYSTEM_CONSTANTS.MODELS.PRIMARY_GEMINI_MODEL}`);
+                Logger.info("GeminiAPI", `Invoking Google Gemini Model: ${SYSTEM_CONSTANTS.MODELS.PRIMARY_GEMINI_MODEL}`);
                 const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${SYSTEM_CONSTANTS.MODELS.PRIMARY_GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -345,29 +384,29 @@ class GeminiAIService {
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status} - ${await response.text()}`);
 
                 const data = await response.json();
                 if (data.candidates && data.candidates.length > 0 && data.candidates[0].content) {
                     return data.candidates[0].content.parts[0].text;
                 }
-                throw new Error("Empty AI response.");
+                throw new Error("Empty AI response received.");
             } catch (error) {
                 lastError = error;
-                Logger.warn("GeminiAPI", `Key failed. Moving to next.`);
+                Logger.warn("GeminiAPI", `Key rotated due to failure.`);
             }
         }
-        throw new GeminiAPIError(`All Gemini keys failed. Last error: ${lastError?.message}`);
+        throw new GeminiAPIError(`All configured Gemini API keys failed. Last error: ${lastError?.message}`);
     }
 
     /**
-     * מפעיל את מודל ג'מיני לצ'אט (שלוחה 1). דורש תגובת JSON.
+     * פונקציית העוזר הקולי לצ'אט - דורשת תשובה מובנית ב-JSON (הן תמלול והן תשובה).
      */
     static async processChatInteraction(base64Audio, historyContext =[]) {
         const prompt = `אתה עוזר קולי וירטואלי חכם בשפה העברית.
-        האזן לאודיו, תמלל אותו במדויק, וענה תשובה מלאה ועניינית.
-        חובה עליך להחזיר אובייקט JSON תקני בלבד עם השדות: "transcription", "answer".
-        אל תחזיר שום טקסט מחוץ ל-JSON ואל תשתמש בסימני פיסוק מיוחדים.`;
+        האזן לאודיו המצורף, תמלל אותו במדויק, וענה תשובה מלאה ועניינית לשאלת המשתמש.
+        חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות: "transcription", "answer".
+        אסור להחזיר טקסט מחוץ ל-JSON. אסור להשתמש בסימני פיסוק מיוחדים.`;
 
         const formattedHistory = historyContext.map(msg => ({
             role: "user", 
@@ -384,29 +423,31 @@ class GeminiAIService {
 
         const rawResponse = await this.callGemini(payload);
         try {
-            let cleanJson = rawResponse.trim();
-            if (cleanJson.startsWith("```json")) cleanJson = cleanJson.substring(7, cleanJson.length - 3).trim();
-            else if (cleanJson.startsWith("```")) cleanJson = cleanJson.substring(3, cleanJson.length - 3).trim();
-            const parsed = JSON.parse(cleanJson);
+            let cleanJsonStr = rawResponse.trim();
+            if (cleanJsonStr.startsWith("```json")) cleanJsonStr = cleanJsonStr.substring(7, cleanJsonStr.length - 3).trim();
+            else if (cleanJsonStr.startsWith("```")) cleanJsonStr = cleanJsonStr.substring(3, cleanJsonStr.length - 3).trim();
+            
+            const parsedData = JSON.parse(cleanJsonStr);
             return {
-                transcription: YemotTextSanitizer.sanitizeForTTS(parsed.transcription || "לא זוהה דיבור"),
-                answer: YemotTextSanitizer.sanitizeForTTS(parsed.answer || "לא הצלחתי לגבש תשובה")
+                transcription: YemotTextSanitizer.sanitizeForTTS(parsedData.transcription || "לא זוהה דיבור ברור"),
+                answer: YemotTextSanitizer.sanitizeForTTS(parsedData.answer || "לא הצלחתי לגבש תשובה")
             };
         } catch (e) {
-            return { transcription: "שגיאת תמלול", answer: YemotTextSanitizer.sanitizeForTTS(rawResponse) };
+            Logger.error("GeminiAPI", "Failed to parse Chat JSON response. Falling back to raw text.", e);
+            return { transcription: "שגיאת תמלול בשרת", answer: YemotTextSanitizer.sanitizeForTTS(rawResponse) };
         }
     }
 
     /**
-     * מפעיל את מודל ג'מיני לתמלול מדויק (שלוחה 0). טקסט בלבד.
+     * פונקציה לתמלול מוחלט (שלוחה 0) - מבקשת מהמודל לחזור מילה במילה ללא תוספות.
      */
     static async processTranscriptionOnly(base64Audio) {
         const prompt = `תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. 
-        החזר אך ורק את הטקסט המתומלל. ללא פרשנות, ללא הקדמה וללא סימני פיסוק כלל.`;
+        החזר אך ורק את הטקסט המתומלל. ללא פרשנות, ללא הקדמה וללא סימני פיסוק כלל. אתה חייב לחזור בדיוק על מה שנאמר.`;
         
         const payload = {
             contents:[{ role: "user", parts:[{ text: prompt }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }],
-            generationConfig: { temperature: 0.1 } // טמפרטורה נמוכה לתמלול מדויק
+            generationConfig: { temperature: 0.1 } 
         };
         
         const response = await this.callGemini(payload);
@@ -429,9 +470,6 @@ class YemotResponseCompiler {
         return this;
     }
 
-    /**
-     * מבקש הקשה. משתמש ב-varName הכולל חותמת זמן!
-     */
     requestDigits(text, baseVarName, min = 1, max = 1) {
         const cleanPrompt = YemotTextSanitizer.sanitizeForTTS(text);
         const timestampedVar = `${baseVarName}_${Date.now()}`;
@@ -446,9 +484,6 @@ class YemotResponseCompiler {
         return this;
     }
 
-    /**
-     * מבקש הקלטה. משתמש ב-varName הכולל חותמת זמן!
-     */
     requestAudioRecord(text, baseVarName, callId) {
         const cleanPrompt = YemotTextSanitizer.sanitizeForTTS(text);
         const timestampedVar = `${baseVarName}_${Date.now()}`;
@@ -478,7 +513,7 @@ export default async function handler(req, res) {
     try {
         Logger.info("Gateway", `New request incoming [${req.method}]`);
 
-        // חילוץ פרמטרים מכל סוגי ה-Requests
+        // HTTP Parameter Extraction Logic
         let rawBody = {};
         if (req.method === 'POST') {
             if (typeof req.body === 'string') {
@@ -487,6 +522,7 @@ export default async function handler(req, res) {
                 rawBody = req.body;
             }
         }
+        
         const urlObj = new URL(req.url, `https://${req.headers.host}`);
         const urlQueries = Object.fromEntries(urlObj.searchParams.entries());
         const query = { ...urlQueries, ...rawBody };
@@ -497,24 +533,19 @@ export default async function handler(req, res) {
         const callId = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.CALL_ID) || `sim_${Date.now()}`;
         const isHangup = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.HANGUP) === 'yes';
 
-        // ==========================================
-        // TIMESTAMPED STATE MACHINE ENGINE
-        // פותר לחלוטין את הלופים של ימות המשיח על ידי מציאת הפעולה עם הזמן החדש ביותר!
-        // ==========================================
+        // Timestamped State Machine Engine
         let triggerBaseKey = null;
         let triggerValue = null;
         let highestTimestamp = 0;
         let pendingAudioOnHangup = false;
 
         for (const [key, val] of Object.entries(query)) {
-            // אנו מחפשים רק פרמטרים שמתחילים ב- State_ (שהגדרנו)
             if (key.startsWith('State_')) {
-                const parts = key.split('_'); //['State', 'BaseName', '17123456789']
+                const parts = key.split('_'); 
                 if (parts.length >= 3) {
                     const timestamp = parseInt(parts[parts.length - 1], 10);
                     if (!isNaN(timestamp) && timestamp > highestTimestamp) {
                         highestTimestamp = timestamp;
-                        // חיבור מחדש של הבסיס למקרה שהיה לו קו תחתון בשם
                         triggerBaseKey = parts.slice(0, parts.length - 1).join('_'); 
                         triggerValue = Array.isArray(val) ? val[val.length - 1] : val;
                     }
@@ -522,9 +553,9 @@ export default async function handler(req, res) {
             }
         }
 
-        Logger.info("State Machine", `Evaluated Current State: [${triggerBaseKey}] = [${triggerValue}]`);
+        Logger.info("State Machine", `Evaluated Current State: [${triggerBaseKey}] =[${triggerValue}]`);
 
-        // יירוט ניתוק - הצלת נתונים (אודיו)
+        // Hangup Audio Recovery System
         if (isHangup) {
             if (triggerValue && triggerValue.includes('.wav') && 
                (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO || 
@@ -538,7 +569,7 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // ROUTING DISPATCHER
+        // ROUTING DISPATCHER & BUSINESS LOGIC
         // ==========================================
 
         // --- 1. CHAT MODULE (Menu 1 & 2) ---
@@ -557,7 +588,7 @@ export default async function handler(req, res) {
             else await DomainControllers.handleChatHistoryPlayback(phone, triggerValue, ivrCompiler);
         }
 
-        // --- 2. TRANSCRIPTION MODULE (Menu 0 & 3) ---
+        // --- 2. TRANSCRIPTION MODULE (Menu 0) ---
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO && triggerValue && triggerValue.includes('.wav')) {
             await DomainControllers.processTransAudio(phone, triggerValue, ivrCompiler, false);
         }
@@ -567,6 +598,8 @@ export default async function handler(req, res) {
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU) {
             await DomainControllers.handleTransDraftMenu(phone, callId, triggerValue, ivrCompiler);
         }
+
+        // --- 3. TRANSCRIPTION HISTORY MODULE (Menu 3) ---
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE) {
             if (triggerValue === '0') DomainControllers.serveMainMenu(ivrCompiler);
             else await DomainControllers.handleTransHistoryPlayback(phone, triggerValue, ivrCompiler);
@@ -575,12 +608,12 @@ export default async function handler(req, res) {
             await DomainControllers.handleTransHistoryActions(phone, triggerValue, ivrCompiler);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.USER_EMAIL_INPUT) {
-            Logger.info("EmailService", `Simulated email send to ${triggerValue}`);
+            Logger.info("EmailService", `Mock Email Send Request to ${triggerValue}`);
             ivrCompiler.playTTS(SYSTEM_CONSTANTS.PROMPTS.EMAIL_SUCCESS);
             DomainControllers.serveMainMenu(ivrCompiler);
         }
 
-        // --- 3. MAIN MENU ---
+        // --- 4. MAIN MENU ---
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.MENU_CHOICE) {
             if (triggerValue === '0') await DomainControllers.initNewTranscription(phone, callId, ivrCompiler);
             else if (triggerValue === '1') await DomainControllers.initNewChat(phone, callId, ivrCompiler);
@@ -589,12 +622,12 @@ export default async function handler(req, res) {
             else DomainControllers.serveMainMenu(ivrCompiler);
         }
         
-        // --- 4. ROOT ENTRY ---
+        // --- 5. ROOT ENTRY POINT ---
         else {
             DomainControllers.serveMainMenu(ivrCompiler);
         }
 
-        // חסימת מענה IVR אם המשתמש כבר ניתק 
+        // Graceful Exit for Audio-Recovery on Hangup
         if (pendingAudioOnHangup) {
             return sendResponse(res, "noop=hangup_acknowledged");
         }
@@ -602,7 +635,7 @@ export default async function handler(req, res) {
         return sendResponse(res, ivrCompiler.compile());
 
     } catch (error) {
-        Logger.error("Global Handler", "Fatal error", error);
+        Logger.error("Global Handler", "Fatal error intercepted. Informing user and dropping call safely.", error);
         const fallback = new YemotResponseCompiler();
         fallback.playTTS(SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR_FALLBACK).routeToFolder("hangup");
         return sendResponse(res, fallback.compile());
@@ -688,7 +721,7 @@ class DomainControllers {
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.CHAT_ACTION_CHOICE, 1, 1);
     }
 
-    // ---- TRANSCRIPTION DOMAIN ----
+    // ---- TRANSCRIPTION DOMAIN (Menu 0) ----
     static async initNewTranscription(phone, callId, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         profile.tempTranscription = "";
@@ -704,7 +737,7 @@ class DomainControllers {
         profile.tempTranscription = isAppend ? `${profile.tempTranscription} ${text}` : text;
         await UserRepository.saveProfile(phone, profile);
 
-        ivrCompiler.playTTS(`התמלול הוא: ${profile.tempTranscription}`);
+        ivrCompiler.playTTS(`התמלול הוא ${profile.tempTranscription}`);
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
     }
 
@@ -737,7 +770,7 @@ class DomainControllers {
         }
     }
 
-    // ---- TRANSCRIPTION HISTORY DOMAIN ----
+    // ---- TRANSCRIPTION HISTORY DOMAIN (Menu 3) ----
     static async initTransHistoryMenu(phone, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         if (profile.transcriptions.length === 0) {
@@ -768,8 +801,8 @@ class DomainControllers {
         profile.currentTransIndex = idx;
         await UserRepository.saveProfile(phone, profile);
 
-        ivrCompiler.playTTS(`התמלול הוא: ${recents[idx].text}`);
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
+        ivrCompiler.playTTS(`התמלול הוא ${recents[idx].text}`);
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_PLAYBACK_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
     }
 
     static async handleTransHistoryActions(phone, choice, ivrCompiler) {
