@@ -1,26 +1,13 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 19.0.0 (The Monolith - Unified, Clean, Phonetics, Pagination & Blob Rest API)
- * @author Custom AI Assistant
- * 
- * CORE FEATURES IMPLEMENTED:
- * 1. Single Extension Routing (type=api).
- * 2. Smart Punctuation & Niqqud: AI instructed to use punctuation. Dual text sanitization 
- *    keeps punctuation for TTS (breathing pauses via `.t-`) but strips it for READ prompts.
- * 3. Hebrew Phonetic Engine: Automatically expands acronyms (e.g., צה"ל -> צבא הגנה לישראל).
- * 4. Advanced Pagination: Long texts are chunked intelligently. User presses '9' to continue.
- * 5. Pure REST Blob Fail-Safe: Direct API calls to Vercel Blob with `x-access: private` to bypass SDK bugs.
- * 6. Hardcoded to `gemini-3.1-flash-lite-preview`.
- * 7. Unified Enterprise OOP structure without duplications.
+ * @version 20.0.0 (Apex Edition - Full History, Advanced Pagination, Native Pauses & Deep AI Context)
  */
 
 export const maxDuration = 60; // Critical: Prevents Vercel Serverless from timing out
 
 // ============================================================================
-// ============================================================================
 // PART 1: SYSTEM CONSTANTS, ENUMS & CONFIGURATION DEFAULTS
-// ============================================================================
 // ============================================================================
 
 const SYSTEM_CONSTANTS = {
@@ -35,48 +22,35 @@ const SYSTEM_CONSTANTS = {
         USERS_DB_DIR: "users/"
     },
     HTTP_STATUS: {
-        OK: 200,
-        BAD_REQUEST: 400,
-        UNAUTHORIZED: 401,
-        FORBIDDEN: 403,
-        NOT_FOUND: 404,
-        INTERNAL_SERVER_ERROR: 500,
-        BAD_GATEWAY: 502,
-        SERVICE_UNAVAILABLE: 503,
-        GATEWAY_TIMEOUT: 504
+        OK: 200, BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403,
+        NOT_FOUND: 404, INTERNAL_SERVER_ERROR: 500, BAD_GATEWAY: 502,
+        SERVICE_UNAVAILABLE: 503, GATEWAY_TIMEOUT: 504
     },
     IVR_DEFAULTS: {
-        STANDARD_TIMEOUT: "7",
-        EMAIL_TIMEOUT: "40",
-        RECORD_MIN_SEC: "1",
-        RECORD_MAX_SEC: "120",
-        MAX_CHUNK_LENGTH: 350 // Safe length for Yemot buffer
+        STANDARD_TIMEOUT: "7", EMAIL_TIMEOUT: "40",
+        RECORD_MIN_SEC: "1", RECORD_MAX_SEC: "120",
+        MAX_CHUNK_LENGTH: 350
     },
     RETRY_POLICY: {
-        MAX_RETRIES: 3,
-        INITIAL_BACKOFF_MS: 1000,
-        BACKOFF_MULTIPLIER: 2,
-        BLOB_MAX_RETRIES: 2,
-        GEMINI_MAX_RETRIES: 3,
-        YEMOT_MAX_RETRIES: 2
+        MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2,
+        BLOB_MAX_RETRIES: 2, GEMINI_MAX_RETRIES: 3, YEMOT_MAX_RETRIES: 2
     },
     PROMPTS: {
         MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית. לתמלול מתקדם הקישו 0. לשיחת צ'אט הקישו 1. להיסטוריית צ'אט הקישו 2. להיסטוריית תמלולים הקישו 3.",
         NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
-        NEW_TRANSCRIPTION_RECORD: "אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
+        NEW_TRANSCRIPTION_INITIAL: "אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
         APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל. בסיום הקישו סולמית.",
         NO_HISTORY: "אין לכם היסטוריית שיחות במערכת. הנכם מועברים לשיחה חדשה.",
         NO_TRANS_HISTORY: "אין לכם היסטוריית תמלולים במערכת. הנכם מועברים לתפריט הראשי.",
         HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות. ",
         TRANS_HISTORY_PREFIX: "תפריט היסטוריית תמלולים. ",
         MENU_SUFFIX_0: "לחזרה לתפריט הראשי הקישו 0.",
-        MENU_SUFFIX_8: "לחזרה לתפריט הראשי הקישו 8.",
         INVALID_CHOICE: "הבחירה שגויה. הנכם מועברים לתפריט הראשי.",
         CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
-        CHAT_PAGINATION_MENU: "לשמיעת המשך התשובה הקישו 9. להמשך השיחה הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
+        CHAT_PAGINATION_MENU: "לשמיעת המשך התשובה הקישו 9. לחלק הקודם הקישו 8. להשהייה והמשך השמעת התשובה הקישו 5. להקלטת שאלה נוספת בשיחה הקישו 7. לחזרה לתפריט הראשי הקישו 0.",
         TRANS_MENU: "לשמיעה חוזרת הקישו 1. להקלטה מחדש הקישו 2. להקלטת המשך הקישו 3. לשמירת התמלול הקישו 4.",
         TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7. לשליחת התמלול לאימייל הקישו 9. לחזרה לתפריט הראשי הקישו 8.",
-        TRANS_PAGINATION_MENU: "לשמיעת המשך התמלול הקישו 9. לחזרה לתפריט הראשי הקישו 8.",
+        TRANS_PAGINATION_MENU: "לשמיעת המשך התמלול הקישו 9. לחלק הקודם הקישו 8. להשהייה והמשך השמעת התמלול הקישו 5. למעבר לאפשרויות התמלול הקישו 7. לחזרה לתפריט הראשי הקישו 0.",
         EMAIL_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת. בסיום הקישו סולמית.",
         EMAIL_SUCCESS: "האימייל נשלח בהצלחה. שלום ותודה.",
         SHARE_SUCCESS: "קובץ התמלול נוצר בהצלחה. הנכם מועברים לתיקיית השיתוף.",
@@ -86,36 +60,33 @@ const SYSTEM_CONSTANTS = {
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
-        אתה עוזר קולי וירטואלי חכם בשפה העברית.
-        האזן לאודיו המצורף, תמלל אותו במדויק, וענה תשובה מלאה, מקיפה, מפורטת וארוכה ככל הנדרש.
-        כדי שרובוט ההקראה הקולי (TTS) יישמע טבעי, עליך למלא אחר ההוראות הבאות:
-        1. השתמש בסימני פיסוק (פסיקים ונקודות) במקומות הנכונים כדי לייצר הפסקות נשימה.
-        2. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
-        3. לא להשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
-        חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות: transcription ו-answer.
-        ענה בהרחבה, ביסודיות ובמקצועיות.
+אתה עוזר קולי וירטואלי חכם בשפה העברית.
+האזן לאודיו המצורף, תמלל אותו במדויק, וענה עליו.
+חשוב מאוד:
+1. ענה תשובות ארוכות, מקיפות, מפורטות ומעמיקות ככל הנדרש.
+2. השתמש בסימני פיסוק (פסיקים ונקודות) במקומות הנכונים כדי לייצר הפסקות נשימה לקריאה טבעית.
+3. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
+4. חובה! אל תשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
+5. חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות: transcription (התמלול) ו-answer (התשובה).
         `,
-        GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא פרשנות וללא הקדמות. השתמש בסימני פיסוק כדי לשמור על קריאה טבעית, אך אל תשתמש בתווים מיוחדים אחרים."
+        GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא פרשנות וללא הקדמות. השתמש בסימני פיסוק (נקודה, פסיק) כדי לשמור על קריאה טבעית, אך אל תשתמש בתווים מיוחדים אחרים. נקד מילים קשות להגייה."
     },
     STATE_BASES: {
         MENU_CHOICE: 'State_MainMenuChoice',
         CHAT_USER_AUDIO: 'State_ChatUserAudio',
         CHAT_HISTORY_CHOICE: 'State_ChatHistoryChoice',
         CHAT_ACTION_CHOICE: 'State_ChatActionChoice',
-        CHAT_PAGINATION: 'State_ChatPagination',
-        TRANS_USER_AUDIO: 'State_TransUserAudio',
+        PAGINATION_CHOICE: 'State_PaginationChoice',
+        TRANS_AUDIO: 'State_TransAudio',
         TRANS_APPEND_AUDIO: 'State_TransAppendAudio',
         TRANS_DRAFT_MENU: 'State_TransDraftMenu',
         TRANS_HISTORY_CHOICE: 'State_TransHistoryChoice',
         TRANS_ACTION_CHOICE: 'State_TransActionChoice',
-        TRANS_PAGINATION: 'State_TransPagination',
         USER_EMAIL_INPUT: 'State_UserEmailInput'
     },
     YEMOT_PARAMS: {
-        PHONE: 'ApiPhone',
-        ENTER_ID: 'ApiEnterID',
-        CALL_ID: 'ApiCallId',
-        HANGUP: 'hangup'
+        PHONE: 'ApiPhone', ENTER_ID: 'ApiEnterID',
+        CALL_ID: 'ApiCallId', HANGUP: 'hangup'
     },
     VERCEL_BLOB: {
         REST_API_BASE_URL: "https://blob.vercel-storage.com"
@@ -123,21 +94,16 @@ const SYSTEM_CONSTANTS = {
 };
 
 // ============================================================================
-// ============================================================================
 // PART 2: ADVANCED ERROR HANDLING & EXCEPTIONS
-// ============================================================================
 // ============================================================================
 
 class AppError extends Error {
-    constructor(message, statusCode = SYSTEM_CONSTANTS.HTTP_STATUS.INTERNAL_SERVER_ERROR, errorCode = "APP_ERR_000", originalError = null) {
+    constructor(message, statusCode = 500, errorCode = "APP_ERR_000", originalError = null) {
         super(message);
         this.name = this.constructor.name;
         this.statusCode = statusCode;
         this.errorCode = errorCode;
         this.originalError = originalError;
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, this.constructor);
-        }
     }
 }
 class YemotAPIError extends AppError { constructor(msg, orig) { super(`Yemot API Error: ${msg}`, 400, "YEMOT_001", orig); } }
@@ -145,9 +111,7 @@ class GeminiAPIError extends AppError { constructor(msg, orig) { super(`Gemini A
 class StorageAPIError extends AppError { constructor(msg, orig) { super(`Storage API Error: ${msg}`, 500, "STORAGE_001", orig); } }
 
 // ============================================================================
-// ============================================================================
 // PART 3: ENTERPRISE TELEMETRY & LOGGER SYSTEM
-// ============================================================================
 // ============================================================================
 
 class Logger {
@@ -162,9 +126,7 @@ class Logger {
 }
 
 // ============================================================================
-// ============================================================================
 // PART 4: ENVIRONMENT CONFIGURATION MANAGER
-// ============================================================================
 // ============================================================================
 
 class ConfigManager {
@@ -177,22 +139,19 @@ class ConfigManager {
         this.initializeConfiguration();
         ConfigManager.instance = this;
     }
-    
     initializeConfiguration() {
         try {
             this.geminiKeys = this.parseApiKeys(process.env.GEMINI_KEYS);
             this.yemotToken = process.env.CALL2ALL_TOKEN || '';
             this.blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
         } catch (error) {
-            Logger.error("ConfigManager", "Failed to initialize environment configuration.", error);
+            Logger.error("ConfigManager", "Failed to init config.", error);
         }
     }
-    
     parseApiKeys(keysString) {
         if (!keysString) return[];
         return keysString.split(',').map(key => key.trim()).filter(key => key.length > 20);
     }
-    
     getNextGeminiKey() {
         if (this.geminiKeys.length === 0) throw new Error("No Gemini API keys configured.");
         const key = this.geminiKeys[this.currentGeminiKeyIndex];
@@ -203,49 +162,25 @@ class ConfigManager {
 const AppConfig = new ConfigManager();
 
 // ============================================================================
-// ============================================================================
 // PART 5: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
-// ============================================================================
 // ============================================================================
 
 const HEBREW_PHONETIC_MAP = {
-    "צה\"ל": "צבא הגנה לישראל",
-    "שב\"כ": "שירות הביטחון הכללי",
-    "מוסד": "המוסד למודיעין ולתפקידים מיוחדים",
-    "מנכ\"ל": "מנהל כללי",
-    "יו\"ר": "יושב ראש",
-    "ח\"כ": "חבר כנסת",
-    "בג\"ץ": "בית משפט גבוה לצדק",
-    "עו\"ד": "דוקטור עורך דין",
-    "ד\"ר": "דוקטור",
-    "פרופ'": "פרופסור",
-    "חז\"ל": "חכמינו זכרונם לברכה",
-    "שליט\"א": "שיחיה לאורך ימים טובים אמן",
-    "זצ\"ל": "זכר צדיק לברכה",
-    "ע\"ה": "עליו השלום",
-    "בע\"ה": "בעזרת השם",
-    "ב\"ה": "ברוך השם",
-    "רבש\"ע": "ריבונו של עולם",
-    "הקב\"ה": "הקדוש ברוך הוא",
-    "תנ\"ך": "תורה נביאים כתובים",
-    "חוהמ\"ע": "חול המועד",
-    "יו\"ט": "יום טוב",
-    "מוצ\"ש": "מוצאי שבת",
-    "רמב\"ם": "רבי משה בן מימון",
-    "רש\"י": "רבי שלמה יצחקי",
-    "ארה\"ב": "ארצות הברית",
-    "חו\"ל": "חוץ לארץ",
-    "דו\"ח": "דין וחשבון",
-    "ת\"א": "תל אביב",
-    "י-ם": "ירושלים",
-    "כיוצ\"ב": "כיוצא בזה",
-    "וכד'": "וכדומה",
-    "וכו'": "וכולי",
-    "עמ'": "עמוד"
+    "צה\"ל": "צבא הגנה לישראל", "שב\"כ": "שירות הביטחון הכללי",
+    "מוסד": "המוסד למודיעין ולתפקידים מיוחדים", "מנכ\"ל": "מנהל כללי",
+    "יו\"ר": "יושב ראש", "ח\"כ": "חבר כנסת", "בג\"ץ": "בית משפט גבוה לצדק",
+    "עו\"ד": "דוקטור עורך דין", "ד\"ר": "דוקטור", "פרופ'": "פרופסור",
+    "חז\"ל": "חכמינו זכרונם לברכה", "שליט\"א": "שיחיה לאורך ימים טובים אמן",
+    "זצ\"ל": "זכר צדיק לברכה", "ע\"ה": "עליו השלום", "בע\"ה": "בעזרת השם",
+    "ב\"ה": "ברוך השם", "רבש\"ע": "ריבונו של עולם", "הקב\"ה": "הקדוש ברוך הוא",
+    "תנ\"ך": "תורה נביאים כתובים", "חוהמ\"ע": "חול המועד", "יו\"ט": "יום טוב",
+    "מוצ\"ש": "מוצאי שבת", "רמב\"ם": "רבי משה בן מימון", "רש\"י": "רבי שלמה יצחקי",
+    "ארה\"ב": "ארצות הברית", "חו\"ל": "חוץ לארץ", "דו\"ח": "דין וחשבון",
+    "ת\"א": "תל אביב", "י-ם": "ירושלים", "כיוצ\"ב": "כיוצא בזה",
+    "וכד'": "וכדומה", "וכו'": "וכולי", "עמ'": "עמוד"
 };
 
 class YemotTextProcessor {
-    
     static applyPhonetics(text) {
         let processedText = text;
         for (const [acronym, expansion] of Object.entries(HEBREW_PHONETIC_MAP)) {
@@ -254,11 +189,6 @@ class YemotTextProcessor {
         }
         return processedText;
     }
-
-    /**
-     * FOR READ PROMPTS: Aggressive stripping.
-     * The `read` command breaks if the prompt text contains commas or dots.
-     */
     static sanitizeForReadPrompt(rawText) {
         if (!rawText || typeof rawText !== 'string') return "שגיאת טקסט";
         let cleanText = this.applyPhonetics(rawText);
@@ -267,36 +197,21 @@ class YemotTextProcessor {
         cleanText = cleanText.replace(/[\n\r]/g, ' ');
         return cleanText.replace(/\s{2,}/g, ' ').trim() || "התקבל טקסט ריק";
     }
-
-    /**
-     * FOR TTS PLAYBACK: Keeps punctuation, splits into sentences, and joins with `.t-`
-     * This creates natural breathing pauses for the TTS robot.
-     */
     static formatForChainedTTS(text) {
         if (!text) return "t-טקסט ריק";
         let cleanText = this.applyPhonetics(text);
-        
-        // Strip critical break characters but LEAVE dots, commas, and newlines
         cleanText = cleanText.replace(/[*#=\&^\[\]{}]/g, ' ');
         cleanText = cleanText.replace(/[\u{1F600}-\u{1F6FF}]/gu, '');
-        
-        // Split by typical sentence boundaries (newlines, periods)
         const parts = cleanText.split(/[\n\r.]+/);
         const validParts = parts.map(p => p.trim()).filter(p => p.length > 0);
-        
         if (validParts.length === 0) return "t-טקסט ריק";
         return "t-" + validParts.join('.t-');
     }
-
-    /**
-     * Chunks extremely long text into pages to prevent Yemot memory crash.
-     */
     static paginateText(text, maxLength = SYSTEM_CONSTANTS.IVR_DEFAULTS.MAX_CHUNK_LENGTH) {
         if (!text) return ["טקסט ריק"];
         const words = text.split(/[\s\n\r]+/);
         const chunks =[];
         let currentChunk = '';
-
         for (const word of words) {
             if ((currentChunk.length + word.length + 1) > maxLength) {
                 if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
@@ -311,21 +226,16 @@ class YemotTextProcessor {
 }
 
 // ============================================================================
-// ============================================================================
 // PART 6: NETWORK RESILIENCE & RETRY HELPER
-// ============================================================================
 // ============================================================================
 
 class RetryHelper {
     static sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-    
     static async withRetry(asyncTask, taskName = "Task", maxRetries = SYSTEM_CONSTANTS.RETRY_POLICY.MAX_RETRIES, initialDelay = SYSTEM_CONSTANTS.RETRY_POLICY.INITIAL_BACKOFF_MS) {
         let lastError;
         let currentDelay = initialDelay;
-        
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                Logger.debug("RetryHelper", `Executing [${taskName}] Attempt ${attempt}/${maxRetries}`);
                 return await asyncTask();
             } catch (error) {
                 lastError = error;
@@ -341,9 +251,7 @@ class RetryHelper {
 }
 
 // ============================================================================
-// ============================================================================
 // PART 7: L1 MEMORY CACHE & L2 VERCEL BLOB STORAGE (PURE REST API)
-// ============================================================================
 // ============================================================================
 
 const UserMemoryCache = new Map();
@@ -353,14 +261,8 @@ class UserRepository {
 
     static async getProfile(phone) {
         if (!phone || phone === 'unknown') return this.generateDefaultProfile();
-        
-        // 1. L1 CACHE: Check RAM first
-        if (UserMemoryCache.has(phone)) {
-            Logger.debug("UserRepository", `L1 Cache Hit for ${phone}`);
-            return UserProfileDTO.validate(UserMemoryCache.get(phone));
-        }
+        if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
 
-        // 2. L2 CACHE: Check Vercel Blob via REST
         const filePath = this._getUserFilePath(phone);
         const fetchOperation = async () => {
             const listUrl = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}?prefix=${encodeURIComponent(filePath)}`;
@@ -374,7 +276,7 @@ class UserRepository {
             if (!contentRes.ok) throw new Error("Blob Fetch failed");
             
             const profile = UserProfileDTO.validate(await contentRes.json());
-            UserMemoryCache.set(phone, profile); // Warm up L1
+            UserMemoryCache.set(phone, profile);
             return profile;
         };
 
@@ -390,11 +292,8 @@ class UserRepository {
 
     static async saveProfile(phone, profileData) {
         if (!phone || phone === 'unknown') return;
-        
-        // 1. L1 CACHE: Save to RAM instantly
         UserMemoryCache.set(phone, profileData);
         
-        // 2. L2 CACHE: Save to Vercel Blob via REST API, forcing private access
         const filePath = this._getUserFilePath(phone);
         const saveOperation = async () => {
             const url = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}/${filePath}`;
@@ -402,10 +301,8 @@ class UserRepository {
                 method: 'PUT',
                 headers: {
                     'authorization': `Bearer ${AppConfig.blobToken}`,
-                    'x-api-version': '7',
-                    'x-add-random-suffix': 'false',
-                    'x-access': 'private', // CRITICAL FIX FOR PRIVATE STORES
-                    'content-type': 'application/json'
+                    'x-api-version': '7', 'x-add-random-suffix': 'false',
+                    'x-access': 'private', 'content-type': 'application/json'
                 },
                 body: JSON.stringify(profileData)
             });
@@ -414,21 +311,16 @@ class UserRepository {
 
         try {
             await RetryHelper.withRetry(saveOperation, "SaveUserBlob", 2, 500);
-            Logger.info("UserRepository", `Profile persisted to L2 Blob for ${phone}.`);
         } catch (error) {
             Logger.error("UserRepository", `L2 Blob save failed. System will rely on L1 Memory Cache. Error: ${error.message}`);
         }
     }
 
-    static generateDefaultProfile() {
-        return UserProfileDTO.generateDefault();
-    }
+    static generateDefaultProfile() { return UserProfileDTO.generateDefault(); }
 }
 
 // ============================================================================
-// ============================================================================
 // PART 8: DATA TRANSFER OBJECTS (DTOs)
-// ============================================================================
 // ============================================================================
 
 class ChatMessageDTO {
@@ -446,7 +338,6 @@ class ChatSessionDTO {
         this.messages =[];
     }
     addMessage(question, answer) { this.messages.push(new ChatMessageDTO(question, answer)); }
-    getRecentContext(count = 5) { return this.messages.slice(-count); }
 }
 
 class TranscriptionEntryDTO {
@@ -462,7 +353,7 @@ class UserProfileDTO {
         return {
             chats: [], transcriptions:[], currentChatId: null,
             tempTranscription: "", currentTransIndex: null,
-            pagination: { chunks:[], currentIndex: 0, type: null },
+            pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endPrompt: "", endStateBase: "" },
             lastActive: new Date().toISOString()
         };
     }
@@ -471,7 +362,7 @@ class UserProfileDTO {
         if (!Array.isArray(data.chats)) data.chats =[];
         if (!Array.isArray(data.transcriptions)) data.transcriptions =[];
         if (!data.pagination || !Array.isArray(data.pagination.chunks)) {
-            data.pagination = { chunks:[], currentIndex: 0, type: null };
+            data.pagination = { type: null, currentIndex: 0, chunks:[], pPrompt: "", endPrompt: "", endStateBase: "" };
         }
         data.lastActive = new Date().toISOString();
         return data;
@@ -479,9 +370,7 @@ class UserProfileDTO {
 }
 
 // ============================================================================
-// ============================================================================
 // PART 9: EXTERNAL API SERVICES
-// ============================================================================
 // ============================================================================
 
 class YemotAPIService {
@@ -553,8 +442,8 @@ class GeminiAIService {
                 ...formattedHistory,
                 { role: "user", parts:[{ text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }
             ],
-            // 4000 tokens for massive, detailed responses
-            generationConfig: { temperature: 0.7, maxOutputTokens: 4000, responseMimeType: SYSTEM_CONSTANTS.MODELS.JSON_MIME_TYPE }
+            // 8000 tokens for massive, rich and detailed responses per user request!
+            generationConfig: { temperature: 0.7, maxOutputTokens: 8000, responseMimeType: SYSTEM_CONSTANTS.MODELS.JSON_MIME_TYPE }
         };
 
         const rawJson = await this.callGemini(payload);
@@ -574,17 +463,15 @@ class GeminiAIService {
 
     static async processTranscriptionOnly(base64Audio) {
         const payload = {
-            contents: [{ role: "user", parts:[{ text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 4000 }
+            contents:[{ role: "user", parts:[{ text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 8000 }
         };
         return await this.callGemini(payload);
     }
 }
 
 // ============================================================================
-// ============================================================================
 // PART 10: YEMOT IVR COMPILER
-// ============================================================================
 // ============================================================================
 
 class YemotResponseCompiler {
@@ -592,7 +479,6 @@ class YemotResponseCompiler {
 
     playChainedTTS(text) {
         if (!text) return this;
-        // Uses the smart formatter that converts sentences to chained `.t-` commands
         const chainedText = YemotTextProcessor.formatForChainedTTS(text);
         this.commandChain.push(`id_list_message=${chainedText}`);
         return this;
@@ -635,9 +521,7 @@ class YemotResponseCompiler {
 }
 
 // ============================================================================
-// ============================================================================
 // PART 11: DOMAIN LOGIC & PAGINATION CONTROLLERS
-// ============================================================================
 // ============================================================================
 
 class DomainControllers {
@@ -649,55 +533,97 @@ class DomainControllers {
     static async initiatePaginatedPlayback(phone, fullText, contextType, ivrCompiler) {
         const chunks = YemotTextProcessor.paginateText(fullText);
         
+        let endPrompt, endStateBase, pPrompt;
+        if (contextType === 'chat') {
+            endPrompt = SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU;
+            endStateBase = SYSTEM_CONSTANTS.STATE_BASES.CHAT_ACTION_CHOICE;
+            pPrompt = SYSTEM_CONSTANTS.PROMPTS.CHAT_PAGINATION_MENU;
+        } else if (contextType === 'trans_draft') {
+            endPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU;
+            endStateBase = SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU;
+            pPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_PAGINATION_MENU;
+        } else if (contextType === 'trans_hist' || contextType === 'trans') {
+            endPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU;
+            endStateBase = SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE;
+            pPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_PAGINATION_MENU;
+        } else {
+            endPrompt = SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU;
+            endStateBase = SYSTEM_CONSTANTS.STATE_BASES.MENU_CHOICE;
+            pPrompt = SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU;
+        }
+
+        const userProfile = await UserRepository.getProfile(phone);
+        userProfile.pagination = { 
+            type: contextType, 
+            currentIndex: 0, 
+            chunks: chunks,
+            endPrompt: endPrompt,
+            endStateBase: endStateBase,
+            pPrompt: pPrompt
+        };
+        await UserRepository.saveProfile(phone, userProfile);
+
+        ivrCompiler.playChainedTTS(chunks[0]);
+        
         if (chunks.length <= 1) {
-            ivrCompiler.playChainedTTS(chunks[0]);
-            if (contextType === 'chat') {
-                ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.CHAT_ACTION_CHOICE, 1, 1);
+            ivrCompiler.requestDigits(endPrompt, endStateBase, 1, 1);
+        } else {
+            ivrCompiler.requestDigits(pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
+        }
+    }
+
+    static async handlePaginationNavigation(phone, choice, callId, ivrCompiler) {
+        const userProfile = await UserRepository.getProfile(phone);
+        const pag = userProfile.pagination;
+
+        if (!pag || !pag.chunks || pag.chunks.length === 0) {
+            this.serveMainMenu(ivrCompiler);
+            return;
+        }
+
+        // Action Bypass (7)
+        if (choice === '7') {
+            if (pag.type === 'chat') {
+                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
+            } else if (pag.type === 'trans_draft') {
+                ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
             } else {
                 ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
             }
             return;
         }
-
-        const userProfile = await UserRepository.getProfile(phone);
-        userProfile.pagination = { type: contextType, currentIndex: 0, chunks: chunks };
-        await UserRepository.saveProfile(phone, userProfile);
-
-        ivrCompiler.playChainedTTS(chunks[0]);
-        const prompt = contextType === 'chat' ? SYSTEM_CONSTANTS.PROMPTS.CHAT_PAGINATION_MENU : SYSTEM_CONSTANTS.PROMPTS.TRANS_PAGINATION_MENU;
-        const stateKey = contextType === 'chat' ? SYSTEM_CONSTANTS.STATE_BASES.CHAT_PAGINATION : SYSTEM_CONSTANTS.STATE_BASES.TRANS_PAGINATION;
-        ivrCompiler.requestDigits(prompt, stateKey, 1, 1);
-    }
-
-    static async handlePaginationNavigation(phone, choice, ivrCompiler, expectedContext) {
-        const userProfile = await UserRepository.getProfile(phone);
-        const pag = userProfile.pagination;
-
-        if (!pag || !pag.chunks || pag.chunks.length === 0 || pag.type !== expectedContext) {
+        
+        // Main Menu Bypass (0)
+        if (choice === '0') {
             this.serveMainMenu(ivrCompiler);
             return;
         }
 
-        if (choice === '9' && pag.currentIndex < pag.chunks.length - 1) {
-            pag.currentIndex++;
-            await UserRepository.saveProfile(phone, userProfile);
-            
-            const isLast = pag.currentIndex === pag.chunks.length - 1;
-            ivrCompiler.playChainedTTS(pag.chunks[pag.currentIndex]);
-            
-            if (isLast) {
-                if (expectedContext === 'chat') ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.CHAT_ACTION_CHOICE, 1, 1);
-                else ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
-            } else {
-                const prompt = expectedContext === 'chat' ? SYSTEM_CONSTANTS.PROMPTS.CHAT_PAGINATION_MENU : SYSTEM_CONSTANTS.PROMPTS.TRANS_PAGINATION_MENU;
-                const stateKey = expectedContext === 'chat' ? SYSTEM_CONSTANTS.STATE_BASES.CHAT_PAGINATION : SYSTEM_CONSTANTS.STATE_BASES.TRANS_PAGINATION;
-                ivrCompiler.requestDigits(prompt, stateKey, 1, 1);
-            }
-        } 
-        else if (expectedContext === 'chat' && choice === '7') {
-            ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, `rec_${Date.now()}`);
+        // Navigation (9=Next, 8=Prev, 5=Pause/Resume replay)
+        if (choice === '9') {
+            if (pag.currentIndex < pag.chunks.length - 1) pag.currentIndex++;
+        } else if (choice === '8') {
+            if (pag.currentIndex > 0) pag.currentIndex--;
+        } else if (choice === '5') {
+            // Do not change index. Replaying the current chunk allows Yemot to natively pause via '5' during playback!
         } else {
-            this.serveMainMenu(ivrCompiler);
+            // Invalid choice
+            ivrCompiler.playChainedTTS("הבחירה שגויה.");
+            const isLastChunk = pag.currentIndex === pag.chunks.length - 1;
+            if (isLastChunk) ivrCompiler.requestDigits(pag.endPrompt, pag.endStateBase, 1, 1);
+            else ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
+            return;
+        }
+
+        await UserRepository.saveProfile(phone, userProfile);
+
+        ivrCompiler.playChainedTTS(pag.chunks[pag.currentIndex]);
+        
+        const isLastChunk = pag.currentIndex === pag.chunks.length - 1;
+        if (isLastChunk) {
+            ivrCompiler.requestDigits(pag.endPrompt, pag.endStateBase, 1, 1);
+        } else {
+            ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
         }
     }
 
@@ -712,42 +638,51 @@ class DomainControllers {
     }
 
     static async processChatAudio(phone, callId, audioPath, ivrCompiler) {
-        const b64 = await YemotAPIService.downloadAudioAsBase64(audioPath);
-        const profile = await UserRepository.getProfile(phone);
-        
-        let chatSession = profile.chats.find(c => c.id === profile.currentChatId);
-        if (!chatSession) {
-            chatSession = new ChatSessionDTO(`chat_rec_${Date.now()}`);
-            profile.chats.push(chatSession);
-            profile.currentChatId = chatSession.id;
+        try {
+            const b64 = await YemotAPIService.downloadAudioAsBase64(audioPath);
+            const profile = await UserRepository.getProfile(phone);
+            
+            let chatSession = profile.chats.find(c => c.id === profile.currentChatId);
+            if (!chatSession) {
+                chatSession = new ChatSessionDTO(`chat_rec_${Date.now()}`);
+                profile.chats.push(chatSession);
+                profile.currentChatId = chatSession.id;
+            }
+
+            const historyContext = chatSession.messages; // Feed the ENTIRE history, limitless!
+            const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, historyContext);
+            
+            chatSession.addMessage(transcription, answer);
+            await UserRepository.saveProfile(phone, profile);
+
+            await this.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
+        } catch (e) {
+            Logger.error("Domain_Chat", "Failed processing audio", e);
+            ivrCompiler.playChainedTTS("לא הצלחתי לשמוע אתכם בבירור. אנא נסו שוב.");
+            ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
         }
-
-        const historyContext = chatSession.messages.slice(-5);
-        const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, historyContext);
-        
-        chatSession.messages.push(new ChatMessageDTO(transcription, answer));
-        await UserRepository.saveProfile(phone, profile);
-
-        await this.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
     }
 
     static async initChatHistoryMenu(phone, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
-        if (profile.chats.length === 0) {
+        const validChats = profile.chats.filter(c => c.messages && c.messages.length > 0);
+        
+        if (validChats.length === 0) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.NO_HISTORY);
             this.serveMainMenu(ivrCompiler);
             return;
         }
         let promptText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX;
-        const recents = profile.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
-        recents.forEach((c, i) => { promptText += `לשיחה ${i + 1} הקישו ${i + 1} `; });
+        const recents = validChats.slice(-9).reverse(); // Max 9 chunks for keypads 1-9
+        recents.forEach((c, i) => { promptText += `לשיחה ${i + 1} הקישו ${i + 1}. `; });
         promptText += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX_0;
         ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 1);
     }
 
     static async handleChatHistoryPlayback(phone, choice, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
-        const recents = profile.chats.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+        const validChats = profile.chats.filter(c => c.messages && c.messages.length > 0);
+        const recents = validChats.slice(-9).reverse();
         const idx = parseInt(choice, 10) - 1;
 
         if (isNaN(idx) || idx < 0 || idx >= recents.length) {
@@ -776,15 +711,24 @@ class DomainControllers {
         ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO, callId);
     }
 
-    static async processTransAudio(phone, audioPath, ivrCompiler, isAppend) {
-        const b64 = await YemotAPIService.downloadAudioAsBase64(audioPath);
-        const text = await GeminiAIService.processTranscriptionOnly(b64);
-        
-        const profile = await UserRepository.getProfile(phone);
-        profile.tempTranscription = isAppend ? `${profile.tempTranscription}\n${text}` : text;
-        await UserRepository.saveProfile(phone, profile);
+    static async processTransAudio(phone, callId, audioPath, ivrCompiler, isAppend) {
+        try {
+            const b64 = await YemotAPIService.downloadAudioAsBase64(audioPath);
+            const text = await GeminiAIService.processTranscriptionOnly(b64);
+            
+            const profile = await UserRepository.getProfile(phone);
+            profile.tempTranscription = isAppend ? `${profile.tempTranscription}\n${text}` : text;
+            await UserRepository.saveProfile(phone, profile);
 
-        await this.initiatePaginatedPlayback(phone, `התמלול הוא\n${profile.tempTranscription}`, 'trans', ivrCompiler);
+            const announcement = `התמלול הוא:\n${profile.tempTranscription}`;
+            await this.initiatePaginatedPlayback(phone, announcement, 'trans_draft', ivrCompiler);
+        } catch (e) {
+            Logger.error("Domain_Trans", "Failed processing trans audio", e);
+            ivrCompiler.playChainedTTS("לא הצלחתי לשמוע אתכם בבירור. אנא נסו שוב.");
+            const prompt = isAppend ? SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD : SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL;
+            const state = isAppend ? SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO : SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO;
+            ivrCompiler.requestAudioRecord(prompt, state, callId);
+        }
     }
 
     static async handleTransDraftMenu(phone, callId, choice, ivrCompiler) {
@@ -821,15 +765,15 @@ class DomainControllers {
             return;
         }
         let promptText = SYSTEM_CONSTANTS.PROMPTS.TRANS_HISTORY_PREFIX;
-        const recents = profile.transcriptions.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
-        recents.forEach((t, i) => { promptText += `לתמלול ${i + 1} הקישו ${i + 1} `; });
+        const recents = profile.transcriptions.slice(-9).reverse();
+        recents.forEach((t, i) => { promptText += `לתמלול ${i + 1} הקישו ${i + 1}. `; });
         promptText += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX_0;
         ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, 1);
     }
 
     static async handleTransHistoryPlayback(phone, choice, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
-        const recents = profile.transcriptions.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+        const recents = profile.transcriptions.slice(-9).reverse();
         const idx = parseInt(choice, 10) - 1;
 
         if (isNaN(idx) || idx < 0 || idx >= recents.length) {
@@ -840,12 +784,12 @@ class DomainControllers {
 
         profile.currentTransIndex = idx;
         await UserRepository.saveProfile(phone, profile);
-        await this.initiatePaginatedPlayback(phone, `תוכן התמלול הוא\n${recents[idx].text}`, 'trans', ivrCompiler);
+        await this.initiatePaginatedPlayback(phone, `תוכן התמלול הוא\n${recents[idx].text}`, 'trans_hist', ivrCompiler);
     }
 
     static async handleTransHistoryActions(phone, choice, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
-        const recents = profile.transcriptions.slice(-SYSTEM_CONSTANTS.YEMOT.MAX_HISTORY_ITEMS).reverse();
+        const recents = profile.transcriptions.slice(-9).reverse();
         const idx = profile.currentTransIndex;
 
         if (choice === '8' || idx === null || idx === undefined || !recents[idx]) {
@@ -879,9 +823,7 @@ class DomainControllers {
 }
 
 // ============================================================================
-// ============================================================================
 // PART 13: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER)
-// ============================================================================
 // ============================================================================
 
 function sendHTTPResponse(res, payloadString) {
@@ -953,8 +895,8 @@ export default async function handler(req, res) {
         if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO && triggerValue && triggerValue.includes('.wav')) {
             await DomainControllers.processChatAudio(phone, callId, triggerValue, ivrCompiler);
         }
-        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_PAGINATION) {
-            await DomainControllers.handlePaginationNavigation(phone, triggerValue, ivrCompiler, 'chat');
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE) {
+            await DomainControllers.handlePaginationNavigation(phone, triggerValue, callId, ivrCompiler);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_ACTION_CHOICE) {
             if (triggerValue === '7') ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
@@ -965,10 +907,10 @@ export default async function handler(req, res) {
             else await DomainControllers.handleChatHistoryPlayback(phone, triggerValue, ivrCompiler);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO && triggerValue && triggerValue.includes('.wav')) {
-            await DomainControllers.processTransAudio(phone, triggerValue, ivrCompiler, false);
+            await DomainControllers.processTransAudio(phone, callId, triggerValue, ivrCompiler, false);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO && triggerValue && triggerValue.includes('.wav')) {
-            await DomainControllers.processTransAudio(phone, triggerValue, ivrCompiler, true);
+            await DomainControllers.processTransAudio(phone, callId, triggerValue, ivrCompiler, true);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU) {
             await DomainControllers.handleTransDraftMenu(phone, callId, triggerValue, ivrCompiler);
@@ -976,9 +918,6 @@ export default async function handler(req, res) {
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE) {
             if (triggerValue === '0') DomainControllers.serveMainMenu(ivrCompiler);
             else await DomainControllers.handleTransHistoryPlayback(phone, triggerValue, ivrCompiler);
-        }
-        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_PAGINATION) {
-            await DomainControllers.handlePaginationNavigation(phone, triggerValue, ivrCompiler, 'trans');
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE) {
             await DomainControllers.handleTransHistoryActions(phone, triggerValue, ivrCompiler);
