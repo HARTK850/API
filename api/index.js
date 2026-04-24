@@ -1,18 +1,21 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 20.0.0 (Apex Edition - Full History, Advanced Pagination, Native Pauses & Deep AI Context)
+ * @version 21.0.0 (Platinum Edition: Google Search, Email Memory, Topic Generation, Smart Pagination)
  */
 
-export const maxDuration = 60; // Critical: Prevents Vercel Serverless from timing out
+import { put, list } from '@vercel/blob';
+import nodemailer from 'nodemailer';
+
+export const maxDuration = 60; // Prevents Serverless timeout
 
 // ============================================================================
-// PART 1: SYSTEM CONSTANTS, ENUMS & CONFIGURATION DEFAULTS
+// PART 1: SYSTEM CONSTANTS & CONFIGURATION
 // ============================================================================
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
+        PRIMARY_GEMINI_MODEL: "gemini-1.5-flash-latest", // Use latest for search capabilities
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
@@ -21,22 +24,15 @@ const SYSTEM_CONSTANTS = {
         SHARED_TRANSCRIPTIONS_DIR: "/SharedTranscriptions",
         USERS_DB_DIR: "users/"
     },
-    HTTP_STATUS: {
-        OK: 200, BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403,
-        NOT_FOUND: 404, INTERNAL_SERVER_ERROR: 500, BAD_GATEWAY: 502,
-        SERVICE_UNAVAILABLE: 503, GATEWAY_TIMEOUT: 504
-    },
     IVR_DEFAULTS: {
         STANDARD_TIMEOUT: "7", EMAIL_TIMEOUT: "40",
-        RECORD_MIN_SEC: "1", RECORD_MAX_SEC: "120",
         MAX_CHUNK_LENGTH: 350
     },
     RETRY_POLICY: {
-        MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2,
-        BLOB_MAX_RETRIES: 2, GEMINI_MAX_RETRIES: 3, YEMOT_MAX_RETRIES: 2
+        MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2
     },
     PROMPTS: {
-        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית. לתמלול מתקדם הקישו 0. לשיחת צ'אט הקישו 1. להיסטוריית צ'אט הקישו 2. להיסטוריית תמלולים הקישו 3.",
+        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית. לתמלול מתקדם הקישו 0. לשיחת צ'אט עם בינה מלאכותית מחוברת לאינטרנט הקישו 1. להיסטוריית צ'אט הקישו 2. להיסטוריית תמלולים הקישו 3.",
         NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
         NEW_TRANSCRIPTION_INITIAL: "אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
         APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל. בסיום הקישו סולמית.",
@@ -45,125 +41,86 @@ const SYSTEM_CONSTANTS = {
         HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות. ",
         TRANS_HISTORY_PREFIX: "תפריט היסטוריית תמלולים. ",
         MENU_SUFFIX_0: "לחזרה לתפריט הראשי הקישו 0.",
-        INVALID_CHOICE: "הבחירה שגויה. הנכם מועברים לתפריט הראשי.",
-        CHAT_ACTION_MENU: "להמשך השיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
-        CHAT_PAGINATION_MENU: "לשמיעת המשך התשובה הקישו 9. לחלק הקודם הקישו 8. להשהייה והמשך השמעת התשובה הקישו 5. להקלטת שאלה נוספת בשיחה הקישו 7. לחזרה לתפריט הראשי הקישו 0.",
+        INVALID_CHOICE: "הבחירה שגויה.",
+        CHAT_PAGINATION_MENU: "לשמיעת המשך התשובה הקישו 9. לחלק הקודם הקישו 8. להשהייה והמשך השמעת התשובה הקישו 5. להקלטת שאלה נוספת בשיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 0.",
         TRANS_MENU: "לשמיעה חוזרת הקישו 1. להקלטה מחדש הקישו 2. להקלטת המשך הקישו 3. לשמירת התמלול הקישו 4.",
-        TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 7. לשליחת התמלול לאימייל הקישו 9. לחזרה לתפריט הראשי הקישו 8.",
-        TRANS_PAGINATION_MENU: "לשמיעת המשך התמלול הקישו 9. לחלק הקודם הקישו 8. להשהייה והמשך השמעת התמלול הקישו 5. למעבר לאפשרויות התמלול הקישו 7. לחזרה לתפריט הראשי הקישו 0.",
+        TRANS_ACTION_MENU: "לשיתוף התמלול למערכות אחרות הקישו 1. לשליחת התמלול לאימייל הקישו 2. לחזרה לתפריט הראשי הקישו 0.",
+        TRANS_PAGINATION_MENU: "לשמיעת המשך התמלול הקישו 9. לחלק הקודם הקישו 8. להשהייה והמשך השמעת התמלול הקישו 5. למעבר לאפשרויות שיתוף הקישו 7. לחזרה לתפריט הראשי הקישו 0.",
+        EMAIL_SAVED_DECISION: "לשליחת התמלול למייל השמור במערכת: ",
+        EMAIL_SAVED_SUFFIX: "הקישו 1. להזנת כתובת מייל אחרת הקישו 2. לחזרה הקישו 0.",
         EMAIL_PROMPT: "אנא הקלידו את כתובת האימייל שלכם באמצעות המקלדת. בסיום הקישו סולמית.",
-        EMAIL_SUCCESS: "האימייל נשלח בהצלחה. שלום ותודה.",
+        EMAIL_SUCCESS: "האימייל נשלח בהצלחה.",
         SHARE_SUCCESS: "קובץ התמלול נוצר בהצלחה. הנכם מועברים לתיקיית השיתוף.",
-        SHARE_FAILED: "אירעה שגיאה ביצירת קובץ השיתוף. הנכם מועברים לתפריט הראשי.",
-        TRANS_SAVED_SUCCESS: "התמלול נשמר בהצלחה. הנכם מועברים לתפריט הראשי.",
-        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה. אך ננסה להמשיך. אנא נסו שוב.",
+        SHARE_FAILED: "אירעה שגיאה ביצירת קובץ השיתוף.",
+        TRANS_SAVED_SUCCESS: "התמלול נשמר בהצלחה.",
+        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה, אך ננסה להמשיך. אנא נסו שוב.",
+        BAD_AUDIO: "לא הצלחתי לשמוע אתכם בבירור. אנא נסו שוב.",
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
-אתה עוזר קולי וירטואלי חכם בשפה העברית.
+אתה עוזר קולי וירטואלי חכם בשפה העברית, המחובר לאינטרנט ויכול לחפש מידע עדכני.
 האזן לאודיו המצורף, תמלל אותו במדויק, וענה עליו.
 חשוב מאוד:
-1. ענה תשובות ארוכות, מקיפות, מפורטות ומעמיקות ככל הנדרש.
+1. ענה תשובות ארוכות, מקיפות, מפורטות ומעמיקות ככל הנדרש. השתמש בחיפוש בגוגל אם נשאלת שאלה על מידע עדכני או עובדתי.
 2. השתמש בסימני פיסוק (פסיקים ונקודות) במקומות הנכונים כדי לייצר הפסקות נשימה לקריאה טבעית.
 3. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
 4. חובה! אל תשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
 5. חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות: transcription (התמלול) ו-answer (התשובה).
         `,
-        GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא פרשנות וללא הקדמות. השתמש בסימני פיסוק (נקודה, פסיק) כדי לשמור על קריאה טבעית, אך אל תשתמש בתווים מיוחדים אחרים. נקד מילים קשות להגייה."
+        GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא פרשנות. השתמש בסימני פיסוק כדי לשמור על קריאה טבעית, אך אל תשתמש בתווים מיוחדים. נקד מילים קשות להגייה."
     },
     STATE_BASES: {
         MENU_CHOICE: 'State_MainMenuChoice',
         CHAT_USER_AUDIO: 'State_ChatUserAudio',
         CHAT_HISTORY_CHOICE: 'State_ChatHistoryChoice',
-        CHAT_ACTION_CHOICE: 'State_ChatActionChoice',
         PAGINATION_CHOICE: 'State_PaginationChoice',
         TRANS_AUDIO: 'State_TransAudio',
         TRANS_APPEND_AUDIO: 'State_TransAppendAudio',
         TRANS_DRAFT_MENU: 'State_TransDraftMenu',
         TRANS_HISTORY_CHOICE: 'State_TransHistoryChoice',
         TRANS_ACTION_CHOICE: 'State_TransActionChoice',
+        EMAIL_DECISION: 'State_EmailDecision',
         USER_EMAIL_INPUT: 'State_UserEmailInput'
     },
     YEMOT_PARAMS: {
         PHONE: 'ApiPhone', ENTER_ID: 'ApiEnterID',
         CALL_ID: 'ApiCallId', HANGUP: 'hangup'
-    },
-    VERCEL_BLOB: {
-        REST_API_BASE_URL: "https://blob.vercel-storage.com"
     }
 };
 
 // ============================================================================
-// PART 2: ADVANCED ERROR HANDLING & EXCEPTIONS
-// ============================================================================
-
-class AppError extends Error {
-    constructor(message, statusCode = 500, errorCode = "APP_ERR_000", originalError = null) {
-        super(message);
-        this.name = this.constructor.name;
-        this.statusCode = statusCode;
-        this.errorCode = errorCode;
-        this.originalError = originalError;
-    }
-}
-class YemotAPIError extends AppError { constructor(msg, orig) { super(`Yemot API Error: ${msg}`, 400, "YEMOT_001", orig); } }
-class GeminiAPIError extends AppError { constructor(msg, orig) { super(`Gemini API Error: ${msg}`, 502, "GEMINI_001", orig); } }
-class StorageAPIError extends AppError { constructor(msg, orig) { super(`Storage API Error: ${msg}`, 500, "STORAGE_001", orig); } }
-
-// ============================================================================
-// PART 3: ENTERPRISE TELEMETRY & LOGGER SYSTEM
+// PART 2: CONFIGURATION & UTILS
 // ============================================================================
 
 class Logger {
     static getTimestamp() { return new Date().toISOString(); }
-    static info(context, message) { console.log(`[INFO][${this.getTimestamp()}] [${context}] ${message}`); }
-    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}] [${context}] ${message}`); }
-    static error(context, message, errorObj = null) {
-        console.error(`[ERROR][${this.getTimestamp()}] [${context}] ${message}`);
-        if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
-    }
-    static debug(context, message) { console.debug(`[DEBUG][${this.getTimestamp()}] [${context}] ${message}`); }
+    static info(ctx, msg) { console.log(`[INFO][${ctx}] ${msg}`); }
+    static warn(ctx, msg) { console.warn(`[WARN][${ctx}] ${msg}`); }
+    static error(ctx, msg, err) { console.error(`[ERROR][${ctx}] ${msg}`, err); }
 }
-
-// ============================================================================
-// PART 4: ENVIRONMENT CONFIGURATION MANAGER
-// ============================================================================
 
 class ConfigManager {
     constructor() {
         if (ConfigManager.instance) return ConfigManager.instance;
         this.geminiKeys =[];
-        this.yemotToken = '';
-        this.blobToken = '';
-        this.currentGeminiKeyIndex = 0;
-        this.initializeConfiguration();
-        ConfigManager.instance = this;
-    }
-    initializeConfiguration() {
-        try {
-            this.geminiKeys = this.parseApiKeys(process.env.GEMINI_KEYS);
-            this.yemotToken = process.env.CALL2ALL_TOKEN || '';
-            this.blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
-        } catch (error) {
-            Logger.error("ConfigManager", "Failed to init config.", error);
+        this.yemotToken = process.env.CALL2ALL_TOKEN || '';
+        this.blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
+        this.emailUser = process.env.EMAIL_USER || '';
+        this.emailPass = process.env.EMAIL_PASS || '';
+        this.currentKeyIndex = 0;
+        if (process.env.GEMINI_KEYS) {
+            this.geminiKeys = process.env.GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k.length > 20);
         }
-    }
-    parseApiKeys(keysString) {
-        if (!keysString) return[];
-        return keysString.split(',').map(key => key.trim()).filter(key => key.length > 20);
+        ConfigManager.instance = this;
     }
     getNextGeminiKey() {
         if (this.geminiKeys.length === 0) throw new Error("No Gemini API keys configured.");
-        const key = this.geminiKeys[this.currentGeminiKeyIndex];
-        this.currentGeminiKeyIndex = (this.currentGeminiKeyIndex + 1) % this.geminiKeys.length;
+        const key = this.geminiKeys[this.currentKeyIndex];
+        this.currentKeyIndex = (this.currentKeyIndex + 1) % this.geminiKeys.length;
         return key;
     }
 }
 const AppConfig = new ConfigManager();
-
-// ============================================================================
-// PART 5: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
-// ============================================================================
 
 const HEBREW_PHONETIC_MAP = {
     "צה\"ל": "צבא הגנה לישראל", "שב\"כ": "שירות הביטחון הכללי",
@@ -177,7 +134,7 @@ const HEBREW_PHONETIC_MAP = {
     "מוצ\"ש": "מוצאי שבת", "רמב\"ם": "רבי משה בן מימון", "רש\"י": "רבי שלמה יצחקי",
     "ארה\"ב": "ארצות הברית", "חו\"ל": "חוץ לארץ", "דו\"ח": "דין וחשבון",
     "ת\"א": "תל אביב", "י-ם": "ירושלים", "כיוצ\"ב": "כיוצא בזה",
-    "וכד'": "וכדומה", "וכו'": "וכולי", "עמ'": "עמוד"
+    "וכד'": "וכדומה", "וכו'": "וכולי", "עמ'": "עמוד", "@": " שטורדל "
 };
 
 class YemotTextProcessor {
@@ -208,7 +165,7 @@ class YemotTextProcessor {
         return "t-" + validParts.join('.t-');
     }
     static paginateText(text, maxLength = SYSTEM_CONSTANTS.IVR_DEFAULTS.MAX_CHUNK_LENGTH) {
-        if (!text) return ["טקסט ריק"];
+        if (!text) return["טקסט ריק"];
         const words = text.split(/[\s\n\r]+/);
         const chunks =[];
         let currentChunk = '';
@@ -226,124 +183,29 @@ class YemotTextProcessor {
 }
 
 // ============================================================================
-// PART 6: NETWORK RESILIENCE & RETRY HELPER
-// ============================================================================
-
-class RetryHelper {
-    static sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-    static async withRetry(asyncTask, taskName = "Task", maxRetries = SYSTEM_CONSTANTS.RETRY_POLICY.MAX_RETRIES, initialDelay = SYSTEM_CONSTANTS.RETRY_POLICY.INITIAL_BACKOFF_MS) {
-        let lastError;
-        let currentDelay = initialDelay;
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                return await asyncTask();
-            } catch (error) {
-                lastError = error;
-                Logger.warn("RetryHelper", `[${taskName}] failed: ${error.message}`);
-                if (attempt < maxRetries) {
-                    await this.sleep(currentDelay);
-                    currentDelay *= SYSTEM_CONSTANTS.RETRY_POLICY.BACKOFF_MULTIPLIER;
-                }
-            }
-        }
-        throw lastError;
-    }
-}
-
-// ============================================================================
-// PART 7: L1 MEMORY CACHE & L2 VERCEL BLOB STORAGE (PURE REST API)
-// ============================================================================
-
-const UserMemoryCache = new Map();
-
-class UserRepository {
-    static _getUserFilePath(phone) { return `${SYSTEM_CONSTANTS.YEMOT_PATHS.USERS_DB_DIR}${phone}.json`; }
-
-    static async getProfile(phone) {
-        if (!phone || phone === 'unknown') return this.generateDefaultProfile();
-        if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
-
-        const filePath = this._getUserFilePath(phone);
-        const fetchOperation = async () => {
-            const listUrl = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}?prefix=${encodeURIComponent(filePath)}`;
-            const listRes = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` } });
-            if (!listRes.ok) throw new Error("Blob List failed");
-            
-            const listData = await listRes.json();
-            if (!listData.blobs || listData.blobs.length === 0) return this.generateDefaultProfile();
-
-            const contentRes = await fetch(listData.blobs[0].url, { headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` } });
-            if (!contentRes.ok) throw new Error("Blob Fetch failed");
-            
-            const profile = UserProfileDTO.validate(await contentRes.json());
-            UserMemoryCache.set(phone, profile);
-            return profile;
-        };
-
-        try {
-            return await RetryHelper.withRetry(fetchOperation, "FetchUserBlob", SYSTEM_CONSTANTS.RETRY_POLICY.BLOB_MAX_RETRIES, 500);
-        } catch (error) {
-            Logger.warn("UserRepository", `L2 Blob Fetch failed. Using fresh profile. Error: ${error.message}`);
-            const newProfile = this.generateDefaultProfile();
-            UserMemoryCache.set(phone, newProfile);
-            return newProfile;
-        }
-    }
-
-    static async saveProfile(phone, profileData) {
-        if (!phone || phone === 'unknown') return;
-        UserMemoryCache.set(phone, profileData);
-        
-        const filePath = this._getUserFilePath(phone);
-        const saveOperation = async () => {
-            const url = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}/${filePath}`;
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'authorization': `Bearer ${AppConfig.blobToken}`,
-                    'x-api-version': '7', 'x-add-random-suffix': 'false',
-                    'x-access': 'private', 'content-type': 'application/json'
-                },
-                body: JSON.stringify(profileData)
-            });
-            if (!response.ok) throw new Error(`Blob Put failed: ${await response.text()}`);
-        };
-
-        try {
-            await RetryHelper.withRetry(saveOperation, "SaveUserBlob", 2, 500);
-        } catch (error) {
-            Logger.error("UserRepository", `L2 Blob save failed. System will rely on L1 Memory Cache. Error: ${error.message}`);
-        }
-    }
-
-    static generateDefaultProfile() { return UserProfileDTO.generateDefault(); }
-}
-
-// ============================================================================
-// PART 8: DATA TRANSFER OBJECTS (DTOs)
+// PART 3: STORAGE & DTOs
 // ============================================================================
 
 class ChatMessageDTO {
     constructor(question, answer) {
         this.q = question || "";
         this.a = answer || "";
-        this.timestamp = new Date().toISOString();
     }
 }
 
 class ChatSessionDTO {
-    constructor(id = null) {
-        this.id = id || `chat_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        this.date = new Date().toISOString();
+    constructor(id = null, topic = "שיחה כללית") {
+        this.id = id || `chat_${Date.now()}`;
+        this.topic = topic;
         this.messages =[];
     }
     addMessage(question, answer) { this.messages.push(new ChatMessageDTO(question, answer)); }
 }
 
 class TranscriptionEntryDTO {
-    constructor(text) {
-        this.id = `trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        this.date = new Date().toISOString();
+    constructor(text, topic = "תמלול כללי") {
+        this.id = `trans_${Date.now()}`;
+        this.topic = topic;
         this.text = text || "";
     }
 }
@@ -351,56 +213,123 @@ class TranscriptionEntryDTO {
 class UserProfileDTO {
     static generateDefault() {
         return {
-            chats: [], transcriptions:[], currentChatId: null,
+            email: "", chats: [], transcriptions:[], currentChatId: null,
             tempTranscription: "", currentTransIndex: null,
-            pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endPrompt: "", endStateBase: "" },
-            lastActive: new Date().toISOString()
+            pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endPrompt: "", endStateBase: "" }
         };
     }
     static validate(data) {
         if (!data || typeof data !== 'object') return this.generateDefault();
-        if (!Array.isArray(data.chats)) data.chats =[];
+        if (!data.email) data.email = "";
+        if (!Array.isArray(data.chats)) data.chats = [];
         if (!Array.isArray(data.transcriptions)) data.transcriptions =[];
         if (!data.pagination || !Array.isArray(data.pagination.chunks)) {
             data.pagination = { type: null, currentIndex: 0, chunks:[], pPrompt: "", endPrompt: "", endStateBase: "" };
         }
-        data.lastActive = new Date().toISOString();
         return data;
     }
 }
 
+const UserMemoryCache = new Map();
+
+class UserRepository {
+    static _getUserFilePath(phone) { return `${SYSTEM_CONSTANTS.YEMOT_PATHS.USERS_DB_DIR}${phone}.json`; }
+
+    static async getProfile(phone) {
+        if (!phone || phone === 'unknown') return UserProfileDTO.generateDefault();
+        if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
+
+        const filePath = this._getUserFilePath(phone);
+        try {
+            const listUrl = `https://blob.vercel-storage.com?prefix=${encodeURIComponent(filePath)}`;
+            const listRes = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` } });
+            if (!listRes.ok) throw new Error("Blob List failed");
+            const listData = await listRes.json();
+            
+            if (!listData.blobs || listData.blobs.length === 0) return UserProfileDTO.generateDefault();
+
+            const contentRes = await fetch(listData.blobs[0].url, { headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` } });
+            if (!contentRes.ok) throw new Error("Blob Fetch failed");
+            
+            const profile = UserProfileDTO.validate(await contentRes.json());
+            UserMemoryCache.set(phone, profile);
+            return profile;
+        } catch (error) {
+            Logger.warn("Storage", `Failed fetching blob for ${phone}. Using fresh. Msg: ${error.message}`);
+            return UserProfileDTO.generateDefault();
+        }
+    }
+
+    static async saveProfile(phone, profileData) {
+        if (!phone || phone === 'unknown') return;
+        UserMemoryCache.set(phone, profileData);
+        
+        try {
+            const filePath = this._getUserFilePath(phone);
+            await put(filePath, JSON.stringify(profileData), {
+                access: 'private', // FIX: Forces private access on private stores to avoid bad_request
+                addRandomSuffix: false,
+                token: AppConfig.blobToken
+            });
+            Logger.info("Storage", `Profile saved for ${phone}`);
+        } catch (error) {
+            Logger.error("Storage", `Blob save failed for ${phone}`, error);
+        }
+    }
+}
+
 // ============================================================================
-// PART 9: EXTERNAL API SERVICES
+// PART 4: EXTERNAL APIs (Gemini, Yemot, Email)
 // ============================================================================
+
+class MailService {
+    static async sendEmail(toAddress, textContent) {
+        if (!AppConfig.emailUser || !AppConfig.emailPass) {
+            Logger.warn("Email", "Email credentials missing in Vercel.");
+            return false;
+        }
+        try {
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: { user: AppConfig.emailUser, pass: AppConfig.emailPass }
+            });
+            await transporter.sendMail({
+                from: `"מערכת AI" <${AppConfig.emailUser}>`,
+                to: toAddress,
+                subject: "סיכום תמלול ממערכת ימות המשיח",
+                text: "מצורף התמלול המבוקש:\n\n" + textContent
+            });
+            Logger.info("Email", `Sent to ${toAddress}`);
+            return true;
+        } catch (e) {
+            Logger.error("Email", "Failed to send", e);
+            return false;
+        }
+    }
+}
 
 class YemotAPIService {
     static async downloadAudioAsBase64(rawFilePath) {
-        const downloadTask = async () => {
-            const fullPath = rawFilePath.startsWith('ivr2:') ? rawFilePath : `ivr2:${rawFilePath}`;
-            const url = `https://www.call2all.co.il/ym/api/DownloadFile?token=${AppConfig.yemotToken}&path=${encodeURIComponent(fullPath)}`;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const buffer = Buffer.from(await response.arrayBuffer());
-            if (buffer.length < 500) throw new Error("File too small (likely text error).");
-            return buffer.toString('base64');
-        };
-        return await RetryHelper.withRetry(downloadTask, "YemotAudioDownload", SYSTEM_CONSTANTS.RETRY_POLICY.YEMOT_MAX_RETRIES, 1000);
+        const fullPath = rawFilePath.startsWith('ivr2:') ? rawFilePath : `ivr2:${rawFilePath}`;
+        const url = `https://www.call2all.co.il/ym/api/DownloadFile?token=${AppConfig.yemotToken}&path=${encodeURIComponent(fullPath)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (buffer.length < 500) throw new Error("Audio too short.");
+        return buffer.toString('base64');
     }
 
     static async uploadTranscriptionForSharing(text, phone) {
-        const uploadTask = async () => {
+        try {
             const fileName = `Shared_Trans_${phone}_${Date.now()}.tts`;
             const fullPath = `ivr2:${SYSTEM_CONSTANTS.YEMOT_PATHS.SHARED_TRANSCRIPTIONS_DIR}/${fileName}`;
             const url = `https://www.call2all.co.il/ym/api/UploadTextFile?token=${AppConfig.yemotToken}&what=${encodeURIComponent(fullPath)}&contents=${encodeURIComponent(text)}`;
             const response = await fetch(url);
             const result = await response.json();
-            if (result.responseStatus !== "OK") throw new Error("Yemot upload rejected");
+            if (result.responseStatus !== "OK") return null;
             return SYSTEM_CONSTANTS.YEMOT_PATHS.SHARED_TRANSCRIPTIONS_DIR;
-        };
-        try {
-            return await RetryHelper.withRetry(uploadTask, "UploadSharedTTS", 2, 1000);
         } catch (e) {
-            Logger.error("YemotAPI", "Failed to upload shared file.", e);
+            Logger.error("YemotAPI", "Sharing failed", e);
             return null;
         }
     }
@@ -409,7 +338,6 @@ class YemotAPIService {
 class GeminiAIService {
     static async callGemini(payload) {
         const keys = AppConfig.geminiKeys;
-        let lastError = null;
         for (let i = 0; i < keys.length; i++) {
             const apiKey = AppConfig.getNextGeminiKey();
             try {
@@ -422,13 +350,20 @@ class GeminiAIService {
                 if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
                     return data.candidates[0].content.parts[0].text;
                 }
-                throw new Error("Empty AI response.");
-            } catch (error) {
-                lastError = error;
-                Logger.warn("GeminiAPI", `Key rotated.`);
-            }
+            } catch (error) { Logger.warn("GeminiAPI", `Key rotated due to error.`); }
         }
-        throw new GeminiAPIError("All API keys failed.", lastError);
+        throw new Error("All API keys failed.");
+    }
+
+    static async generateTopic(text) {
+        try {
+            const payload = {
+                contents: [{ role: "user", parts:[{ text: `קרא את הטקסט הבא ותן לו כותרת קצרה מאוד של 2 עד 4 מילים (ללא מרכאות, אמוג'י או תווים מיוחדים כלל) שמתארת את הנושא המרכזי שלו:\n\n${text.substring(0, 1000)}` }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 20 }
+            };
+            const topic = await this.callGemini(payload);
+            return topic.replace(/["'*#\n\r]/g, '').trim();
+        } catch(e) { return "שיחה כללית"; }
     }
 
     static async processChatInteraction(base64Audio, historyContext =[]) {
@@ -442,23 +377,20 @@ class GeminiAIService {
                 ...formattedHistory,
                 { role: "user", parts:[{ text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }
             ],
-            // 8000 tokens for massive, rich and detailed responses per user request!
+            tools: [{ googleSearch: {} }], // ENABLE GOOGLE SEARCH!
             generationConfig: { temperature: 0.7, maxOutputTokens: 8000, responseMimeType: SYSTEM_CONSTANTS.MODELS.JSON_MIME_TYPE }
         };
 
         const rawJson = await this.callGemini(payload);
-        try {
-            let cleanJson = rawJson.trim();
-            if (cleanJson.startsWith("```json")) cleanJson = cleanJson.substring(7, cleanJson.length - 3).trim();
-            else if (cleanJson.startsWith("```")) cleanJson = cleanJson.substring(3, cleanJson.length - 3).trim();
-            const parsed = JSON.parse(cleanJson);
-            return {
-                transcription: parsed.transcription || "לא זוהה דיבור",
-                answer: parsed.answer || "לא הצלחתי לגבש תשובה"
-            };
-        } catch (e) {
-            return { transcription: "שגיאת תמלול בשרת", answer: rawJson };
-        }
+        let cleanJson = rawJson.trim();
+        if (cleanJson.startsWith("```json")) cleanJson = cleanJson.substring(7, cleanJson.length - 3).trim();
+        else if (cleanJson.startsWith("```")) cleanJson = cleanJson.substring(3, cleanJson.length - 3).trim();
+        
+        const parsed = JSON.parse(cleanJson);
+        return {
+            transcription: parsed.transcription || "לא זוהה דיבור",
+            answer: parsed.answer || "לא הצלחתי לגבש תשובה"
+        };
     }
 
     static async processTranscriptionOnly(base64Audio) {
@@ -471,19 +403,17 @@ class GeminiAIService {
 }
 
 // ============================================================================
-// PART 10: YEMOT IVR COMPILER
+// PART 5: YEMOT IVR COMPILER
 // ============================================================================
 
 class YemotResponseCompiler {
     constructor() { this.commandChain =[]; }
-
+    
     playChainedTTS(text) {
         if (!text) return this;
-        const chainedText = YemotTextProcessor.formatForChainedTTS(text);
-        this.commandChain.push(`id_list_message=${chainedText}`);
+        this.commandChain.push(`id_list_message=${YemotTextProcessor.formatForChainedTTS(text)}`);
         return this;
     }
-
     requestDigits(ttsPrompt, baseVariableName, minDigits = 1, maxDigits = 1) {
         const safePrompt = YemotTextProcessor.sanitizeForReadPrompt(ttsPrompt);
         const timestampedVarName = `${baseVariableName}_${Date.now()}`;
@@ -491,7 +421,6 @@ class YemotResponseCompiler {
         this.commandChain.push(`read=t-${safePrompt}=${timestampedVarName},${params.join(',')}`);
         return this;
     }
-
     requestEmailKeyboard(ttsPrompt, baseVariableName) {
         const safePrompt = YemotTextProcessor.sanitizeForReadPrompt(ttsPrompt);
         const timestampedVarName = `${baseVariableName}_${Date.now()}`;
@@ -499,7 +428,6 @@ class YemotResponseCompiler {
         this.commandChain.push(`read=t-${safePrompt}=${timestampedVarName},${params.join(',')}`);
         return this;
     }
-
     requestAudioRecord(ttsPrompt, baseVariableName, uniqueCallId) {
         const safePrompt = YemotTextProcessor.sanitizeForReadPrompt(ttsPrompt);
         const fileName = `rec_${uniqueCallId}_${Date.now()}`;
@@ -508,12 +436,10 @@ class YemotResponseCompiler {
         this.commandChain.push(`read=t-${safePrompt}=${timestampedVarName},${params.join(',')}`);
         return this;
     }
-
     routeToFolder(folder) {
         this.commandChain.push(`go_to_folder=${folder}`);
         return this;
     }
-
     compile() {
         if (this.commandChain.length === 0) this.routeToFolder("hangup");
         return this.commandChain.filter(cmd => cmd.trim() !== '').join('&');
@@ -521,7 +447,7 @@ class YemotResponseCompiler {
 }
 
 // ============================================================================
-// PART 11: DOMAIN LOGIC & PAGINATION CONTROLLERS
+// PART 6: DOMAIN LOGIC CONTROLLERS
 // ============================================================================
 
 class DomainControllers {
@@ -542,25 +468,14 @@ class DomainControllers {
             endPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU;
             endStateBase = SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU;
             pPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_PAGINATION_MENU;
-        } else if (contextType === 'trans_hist' || contextType === 'trans') {
+        } else {
             endPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU;
             endStateBase = SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE;
             pPrompt = SYSTEM_CONSTANTS.PROMPTS.TRANS_PAGINATION_MENU;
-        } else {
-            endPrompt = SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU;
-            endStateBase = SYSTEM_CONSTANTS.STATE_BASES.MENU_CHOICE;
-            pPrompt = SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU;
         }
 
         const userProfile = await UserRepository.getProfile(phone);
-        userProfile.pagination = { 
-            type: contextType, 
-            currentIndex: 0, 
-            chunks: chunks,
-            endPrompt: endPrompt,
-            endStateBase: endStateBase,
-            pPrompt: pPrompt
-        };
+        userProfile.pagination = { type: contextType, currentIndex: 0, chunks, endPrompt, endStateBase, pPrompt };
         await UserRepository.saveProfile(phone, userProfile);
 
         ivrCompiler.playChainedTTS(chunks[0]);
@@ -576,58 +491,35 @@ class DomainControllers {
         const userProfile = await UserRepository.getProfile(phone);
         const pag = userProfile.pagination;
 
-        if (!pag || !pag.chunks || pag.chunks.length === 0) {
-            this.serveMainMenu(ivrCompiler);
-            return;
-        }
+        if (!pag || !pag.chunks || pag.chunks.length === 0) return this.serveMainMenu(ivrCompiler);
 
-        // Action Bypass (7)
-        if (choice === '7') {
-            if (pag.type === 'chat') {
-                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
-            } else if (pag.type === 'trans_draft') {
-                ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
-            } else {
-                ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
-            }
-            return;
-        }
+        if (choice === '0') return this.serveMainMenu(ivrCompiler);
         
-        // Main Menu Bypass (0)
-        if (choice === '0') {
-            this.serveMainMenu(ivrCompiler);
+        if (choice === '7') {
+            if (pag.type === 'chat') ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
+            else if (pag.type === 'trans_draft') ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
+            else ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
             return;
         }
 
-        // Navigation (9=Next, 8=Prev, 5=Pause/Resume replay)
-        if (choice === '9') {
-            if (pag.currentIndex < pag.chunks.length - 1) pag.currentIndex++;
-        } else if (choice === '8') {
-            if (pag.currentIndex > 0) pag.currentIndex--;
-        } else if (choice === '5') {
-            // Do not change index. Replaying the current chunk allows Yemot to natively pause via '5' during playback!
-        } else {
-            // Invalid choice
-            ivrCompiler.playChainedTTS("הבחירה שגויה.");
-            const isLastChunk = pag.currentIndex === pag.chunks.length - 1;
-            if (isLastChunk) ivrCompiler.requestDigits(pag.endPrompt, pag.endStateBase, 1, 1);
+        if (choice === '9') { if (pag.currentIndex < pag.chunks.length - 1) pag.currentIndex++; } 
+        else if (choice === '8') { if (pag.currentIndex > 0) pag.currentIndex--; } 
+        else if (choice === '5') { /* Keep same index for replay */ } 
+        else {
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
+            if (pag.currentIndex === pag.chunks.length - 1) ivrCompiler.requestDigits(pag.endPrompt, pag.endStateBase, 1, 1);
             else ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
             return;
         }
 
         await UserRepository.saveProfile(phone, userProfile);
-
         ivrCompiler.playChainedTTS(pag.chunks[pag.currentIndex]);
         
-        const isLastChunk = pag.currentIndex === pag.chunks.length - 1;
-        if (isLastChunk) {
-            ivrCompiler.requestDigits(pag.endPrompt, pag.endStateBase, 1, 1);
-        } else {
-            ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
-        }
+        if (pag.currentIndex === pag.chunks.length - 1) ivrCompiler.requestDigits(pag.endPrompt, pag.endStateBase, 1, 1);
+        else ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
     }
 
-    // ---- CHAT DOMAIN ----
+    // ---- CHAT ----
     static async initNewChat(phone, callId, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         const newSession = new ChatSessionDTO(`chat_${Date.now()}`);
@@ -644,21 +536,24 @@ class DomainControllers {
             
             let chatSession = profile.chats.find(c => c.id === profile.currentChatId);
             if (!chatSession) {
-                chatSession = new ChatSessionDTO(`chat_rec_${Date.now()}`);
+                chatSession = new ChatSessionDTO(`chat_${Date.now()}`);
                 profile.chats.push(chatSession);
                 profile.currentChatId = chatSession.id;
             }
 
-            const historyContext = chatSession.messages; // Feed the ENTIRE history, limitless!
-            const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, historyContext);
-            
+            const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, chatSession.messages);
             chatSession.addMessage(transcription, answer);
-            await UserRepository.saveProfile(phone, profile);
+            
+            // Generate topic if it's the first message
+            if (chatSession.messages.length === 1) {
+                chatSession.topic = await GeminiAIService.generateTopic(`שאלה: ${transcription}\nתשובה: ${answer}`);
+            }
 
+            await UserRepository.saveProfile(phone, profile);
             await this.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
         } catch (e) {
-            Logger.error("Domain_Chat", "Failed processing audio", e);
-            ivrCompiler.playChainedTTS("לא הצלחתי לשמוע אתכם בבירור. אנא נסו שוב.");
+            Logger.error("Chat", "Audio err", e);
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.BAD_AUDIO);
             ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
         }
     }
@@ -669,12 +564,14 @@ class DomainControllers {
         
         if (validChats.length === 0) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.NO_HISTORY);
-            this.serveMainMenu(ivrCompiler);
-            return;
+            return this.serveMainMenu(ivrCompiler);
         }
         let promptText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX;
-        const recents = validChats.slice(-9).reverse(); // Max 9 chunks for keypads 1-9
-        recents.forEach((c, i) => { promptText += `לשיחה ${i + 1} הקישו ${i + 1}. `; });
+        const recents = validChats.slice(-9).reverse(); 
+        recents.forEach((c, i) => { 
+            const topic = c.topic ? YemotTextProcessor.sanitizeForReadPrompt(c.topic) : "שיחה כללית";
+            promptText += `לשיחה בנושא ${topic}, הקישו ${i + 1}. `; 
+        });
         promptText += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX_0;
         ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 1);
     }
@@ -687,8 +584,7 @@ class DomainControllers {
 
         if (isNaN(idx) || idx < 0 || idx >= recents.length) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
-            this.serveMainMenu(ivrCompiler);
-            return;
+            return this.serveMainMenu(ivrCompiler);
         }
 
         const selectedSession = recents[idx];
@@ -699,11 +595,10 @@ class DomainControllers {
         selectedSession.messages.forEach((msg, i) => {
             playbackScript += `שאלה ${i + 1}\n${msg.q}\nתשובה ${i + 1}\n${msg.a}\n`;
         });
-
         await this.initiatePaginatedPlayback(phone, playbackScript, 'chat', ivrCompiler);
     }
 
-    // ---- TRANSCRIPTION DOMAIN ----
+    // ---- TRANSCRIPTION ----
     static async initNewTranscription(phone, callId, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         profile.tempTranscription = "";
@@ -723,8 +618,8 @@ class DomainControllers {
             const announcement = `התמלול הוא:\n${profile.tempTranscription}`;
             await this.initiatePaginatedPlayback(phone, announcement, 'trans_draft', ivrCompiler);
         } catch (e) {
-            Logger.error("Domain_Trans", "Failed processing trans audio", e);
-            ivrCompiler.playChainedTTS("לא הצלחתי לשמוע אתכם בבירור. אנא נסו שוב.");
+            Logger.error("Trans", "Audio err", e);
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.BAD_AUDIO);
             const prompt = isAppend ? SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD : SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL;
             const state = isAppend ? SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO : SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO;
             ivrCompiler.requestAudioRecord(prompt, state, callId);
@@ -734,26 +629,19 @@ class DomainControllers {
     static async handleTransDraftMenu(phone, callId, choice, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         switch(choice) {
-            case '1':
-                await this.initiatePaginatedPlayback(phone, profile.tempTranscription || "טקסט ריק", 'trans', ivrCompiler);
-                break;
-            case '2':
-                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO, callId);
-                break;
-            case '3':
-                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO, callId);
-                break;
+            case '1': await this.initiatePaginatedPlayback(phone, profile.tempTranscription || "טקסט ריק", 'trans_draft', ivrCompiler); break;
+            case '2': ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_TRANSCRIPTION_INITIAL, SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO, callId); break;
+            case '3': ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.APPEND_TRANSCRIPTION_RECORD, SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO, callId); break;
             case '4':
                 if (profile.tempTranscription) {
-                    profile.transcriptions.push(new TranscriptionEntryDTO(profile.tempTranscription));
+                    const topic = await GeminiAIService.generateTopic(profile.tempTranscription);
+                    profile.transcriptions.push(new TranscriptionEntryDTO(profile.tempTranscription, topic));
                     profile.tempTranscription = ""; 
                     await UserRepository.saveProfile(phone, profile);
                     ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.TRANS_SAVED_SUCCESS);
                 }
-                this.serveMainMenu(ivrCompiler);
-                break;
-            default:
-                this.serveMainMenu(ivrCompiler);
+                this.serveMainMenu(ivrCompiler); break;
+            default: this.serveMainMenu(ivrCompiler);
         }
     }
 
@@ -761,12 +649,14 @@ class DomainControllers {
         const profile = await UserRepository.getProfile(phone);
         if (profile.transcriptions.length === 0) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.NO_TRANS_HISTORY);
-            this.serveMainMenu(ivrCompiler);
-            return;
+            return this.serveMainMenu(ivrCompiler);
         }
         let promptText = SYSTEM_CONSTANTS.PROMPTS.TRANS_HISTORY_PREFIX;
         const recents = profile.transcriptions.slice(-9).reverse();
-        recents.forEach((t, i) => { promptText += `לתמלול ${i + 1} הקישו ${i + 1}. `; });
+        recents.forEach((t, i) => { 
+            const topic = t.topic ? YemotTextProcessor.sanitizeForReadPrompt(t.topic) : "תמלול כללי";
+            promptText += `לתמלול בנושא ${topic}, הקישו ${i + 1}. `; 
+        });
         promptText += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX_0;
         ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, 1);
     }
@@ -778,8 +668,7 @@ class DomainControllers {
 
         if (isNaN(idx) || idx < 0 || idx >= recents.length) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
-            this.serveMainMenu(ivrCompiler);
-            return;
+            return this.serveMainMenu(ivrCompiler);
         }
 
         profile.currentTransIndex = idx;
@@ -787,17 +676,17 @@ class DomainControllers {
         await this.initiatePaginatedPlayback(phone, `תוכן התמלול הוא\n${recents[idx].text}`, 'trans_hist', ivrCompiler);
     }
 
+    // ---- SHARE & EMAIL ----
     static async handleTransHistoryActions(phone, choice, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         const recents = profile.transcriptions.slice(-9).reverse();
         const idx = profile.currentTransIndex;
 
-        if (choice === '8' || idx === null || idx === undefined || !recents[idx]) {
-            this.serveMainMenu(ivrCompiler);
-            return;
+        if (choice === '0' || idx === null || idx === undefined || !recents[idx]) {
+            return this.serveMainMenu(ivrCompiler);
         }
 
-        if (choice === '7') {
+        if (choice === '1') { // Share
             const targetDir = await YemotAPIService.uploadTranscriptionForSharing(recents[idx].text, phone);
             if (targetDir) {
                 ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SHARE_SUCCESS);
@@ -807,23 +696,48 @@ class DomainControllers {
                 this.serveMainMenu(ivrCompiler);
             }
         } 
-        else if (choice === '9') {
-            ivrCompiler.requestEmailKeyboard(SYSTEM_CONSTANTS.PROMPTS.EMAIL_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.USER_EMAIL_INPUT);
+        else if (choice === '2') { // Email
+            if (profile.email) {
+                const safeEmail = profile.email.replace('@', ' שטורדל ');
+                ivrCompiler.requestDigits(`${SYSTEM_CONSTANTS.PROMPTS.EMAIL_SAVED_DECISION} ${safeEmail}, ${SYSTEM_CONSTANTS.PROMPTS.EMAIL_SAVED_SUFFIX}`, SYSTEM_CONSTANTS.STATE_BASES.EMAIL_DECISION, 1, 1);
+            } else {
+                ivrCompiler.requestEmailKeyboard(SYSTEM_CONSTANTS.PROMPTS.EMAIL_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.USER_EMAIL_INPUT);
+            }
         }
-        else {
+        else { this.serveMainMenu(ivrCompiler); }
+    }
+
+    static async handleEmailDecision(phone, choice, ivrCompiler) {
+        if (choice === '0') return this.serveMainMenu(ivrCompiler);
+        
+        const profile = await UserRepository.getProfile(phone);
+        if (choice === '1' && profile.email) {
+            const textBody = profile.transcriptions.slice(-9).reverse()[profile.currentTransIndex].text;
+            const success = await MailService.sendEmail(profile.email, textBody);
+            ivrCompiler.playChainedTTS(success ? SYSTEM_CONSTANTS.PROMPTS.EMAIL_SUCCESS : "אירעה שגיאה בשליחת המייל.");
             this.serveMainMenu(ivrCompiler);
+        } else {
+            ivrCompiler.requestEmailKeyboard(SYSTEM_CONSTANTS.PROMPTS.EMAIL_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.USER_EMAIL_INPUT);
         }
     }
 
     static async executeEmailSending(phone, emailInput, ivrCompiler) {
-        Logger.info("Domain_Email", `MOCK: Email sent to [${emailInput}]`);
-        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.EMAIL_SUCCESS);
+        const email = emailInput.replace(' שטורדל ', '@').trim();
+        const profile = await UserRepository.getProfile(phone);
+        
+        profile.email = email; // Save for future!
+        await UserRepository.saveProfile(phone, profile);
+
+        const textBody = profile.transcriptions.slice(-9).reverse()[profile.currentTransIndex].text;
+        const success = await MailService.sendEmail(email, textBody);
+        
+        ivrCompiler.playChainedTTS(success ? SYSTEM_CONSTANTS.PROMPTS.EMAIL_SUCCESS : "אירעה שגיאה בשליחת המייל.");
         this.serveMainMenu(ivrCompiler);
     }
 }
 
 // ============================================================================
-// PART 13: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER)
+// PART 7: MAIN HANDLER
 // ============================================================================
 
 function sendHTTPResponse(res, payloadString) {
@@ -836,8 +750,6 @@ export default async function handler(req, res) {
     const ivrCompiler = new YemotResponseCompiler();
 
     try {
-        Logger.info("Gateway", `---------- REQUEST [${req.method}] ----------`);
-
         let rawBody = {};
         if (req.method === 'POST') {
             if (typeof req.body === 'string') {
@@ -859,7 +771,7 @@ export default async function handler(req, res) {
         let triggerValue = null;
         let highestTimestamp = 0;
         
-        for (const [key, val] of Object.entries(mergedQuery)) {
+        for (const[key, val] of Object.entries(mergedQuery)) {
             if (key.startsWith('State_')) {
                 const parts = key.split('_');
                 if (parts.length >= 3) {
@@ -873,25 +785,19 @@ export default async function handler(req, res) {
             }
         }
 
-        Logger.info("State_Machine", `Trigger:[${triggerBaseKey}] = [${triggerValue}]`);
-
         let pendingAudio = false;
         if (isHangup) {
             if (triggerValue && triggerValue.includes('.wav') && 
                (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO || 
                 triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO || 
                 triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO)) {
-                Logger.info("Gateway", "Hangup with pending audio. Processing locally before exit.");
                 pendingAudio = true;
             } else {
                 return sendHTTPResponse(res, "noop=hangup_acknowledged");
             }
         }
 
-        // ==========================================
-        // ROUTING DISPATCHER
-        // ==========================================
-
+        // --- DISPATCHER ---
         if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO && triggerValue && triggerValue.includes('.wav')) {
             await DomainControllers.processChatAudio(phone, callId, triggerValue, ivrCompiler);
         }
@@ -922,6 +828,9 @@ export default async function handler(req, res) {
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE) {
             await DomainControllers.handleTransHistoryActions(phone, triggerValue, ivrCompiler);
         }
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.EMAIL_DECISION) {
+            await DomainControllers.handleEmailDecision(phone, triggerValue, ivrCompiler);
+        }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.USER_EMAIL_INPUT) {
             await DomainControllers.executeEmailSending(phone, triggerValue, ivrCompiler);
         }
@@ -940,7 +849,7 @@ export default async function handler(req, res) {
         return sendHTTPResponse(res, ivrCompiler.compile());
 
     } catch (globalException) {
-        Logger.error("Global_Catch_Block", "Critical failure.", globalException);
+        Logger.error("Global_Catch", "Critical failure.", globalException);
         const fallbackCompiler = new YemotResponseCompiler();
         fallbackCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR_FALLBACK).routeToFolder("hangup");
         return sendHTTPResponse(res, fallbackCompiler.compile());
