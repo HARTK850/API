@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 30.0.0 (Titanium Core - RSS News, Open-Meteo, Hebrew Keyboard Fix, Perfect Native Prompts, Forever History)
+ * @version 31.0.0 (Platinum Core - Private Blob Fix, Native Hebrew Date Module, Custom Prompts Locked)
  * @author Custom AI Assistant
  */
 
@@ -15,13 +15,13 @@ export const maxDuration = 60; // Prevents Vercel Serverless from timing out
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", // LOCKED EXCLUSIVELY TO YOUR REQUEST
+        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
     YEMOT_PATHS: {
         RECORDINGS_DIR: "/ApiRecords",
-        USERS_DB_DIR: "users_v4/", // New directory to avoid Vercel Blob access issues
+        USERS_DB_DIR: "users_v4/",
         STATS_FILE: "global_system_stats_v2.json"
     },
     HTTP_STATUS: { OK: 200, INTERNAL_SERVER_ERROR: 500 },
@@ -166,7 +166,37 @@ class ConfigManager {
 const AppConfig = new ConfigManager();
 
 // ============================================================================
-// PART 4: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
+// PART 4: HEBREW NATIVE DATE & TIME ENGINE
+// ============================================================================
+
+class DateTimeHelper {
+    static getHebrewDateTimeString() {
+        try {
+            // Get current time in Jerusalem Timezone securely
+            const jerusalemTimeStr = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' });
+            const jerusalemTime = new Date(jerusalemTimeStr);
+            
+            const days =['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+            const months =['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+            const dayName = days[jerusalemTime.getDay()];
+            const dayNum = jerusalemTime.getDate();
+            const monthName = months[jerusalemTime.getMonth()];
+            const year = jerusalemTime.getFullYear();
+            
+            const hours = jerusalemTime.getHours().toString().padStart(2, '0');
+            const minutes = jerusalemTime.getMinutes().toString().padStart(2, '0');
+
+            return `יום ${dayName}, ${dayNum} ב${monthName} ${year}, שעה ${hours}:${minutes}`;
+        } catch (e) {
+            Logger.warn("DateTimeHelper", "Failed to generate dynamic Hebrew date.");
+            return "תאריך ושעה נוכחיים לא ידועים";
+        }
+    }
+}
+
+// ============================================================================
+// PART 5: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
 // ============================================================================
 
 const HEBREW_PHONETIC_MAP = {
@@ -179,7 +209,7 @@ const HEBREW_PHONETIC_MAP = {
 class YemotTextProcessor {
     static applyPhonetics(text) {
         let processedText = text;
-        for (const [acronym, expansion] of Object.entries(HEBREW_PHONETIC_MAP)) {
+        for (const[acronym, expansion] of Object.entries(HEBREW_PHONETIC_MAP)) {
             const regex = new RegExp(`\\b${acronym.replace(/"/g, '\\"').replace(/'/g, '\\\'')}\\b`, 'g');
             processedText = processedText.replace(regex, expansion);
         }
@@ -232,7 +262,7 @@ class YemotTextProcessor {
 }
 
 // ============================================================================
-// PART 5: NETWORK RESILIENCE & RETRY HELPER
+// PART 6: NETWORK RESILIENCE & RETRY HELPER
 // ============================================================================
 
 class RetryHelper {
@@ -257,7 +287,7 @@ class RetryHelper {
 }
 
 // ============================================================================
-// PART 6: GLOBAL STATS & VERCEL BLOB STORAGE (PUBLIC ACCESS FIX)
+// PART 7: GLOBAL STATS & VERCEL BLOB STORAGE (PRIVATE STORE FIX)
 // ============================================================================
 
 class GlobalStatsManager {
@@ -266,7 +296,11 @@ class GlobalStatsManager {
         try {
             const { blobs } = await list({ prefix: filePath, token: AppConfig.blobToken });
             if (!blobs || blobs.length === 0) return this.defaultStats();
-            const contentRes = await fetch(blobs[0].url);
+            
+            // FIX: Passing Authorization header required for Private Blobs
+            const contentRes = await fetch(blobs[0].url, {
+                headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` }
+            });
             if (!contentRes.ok) return this.defaultStats();
             return await contentRes.json();
         } catch (error) {
@@ -278,7 +312,7 @@ class GlobalStatsManager {
         const filePath = SYSTEM_CONSTANTS.YEMOT_PATHS.STATS_FILE;
         try {
             await put(filePath, JSON.stringify(statsObj), {
-                access: 'public', // REQUIRED FOR FREE VERCEL BLOB TO AVOID 500/400 ERRORS
+                access: 'private', // FIX: Set to 'private' to respect private stores
                 addRandomSuffix: false,
                 token: AppConfig.blobToken
             });
@@ -337,8 +371,11 @@ class UserRepository {
             const { blobs } = await list({ prefix: filePath, token: AppConfig.blobToken });
             if (!blobs || blobs.length === 0) return UserProfileDTO.generateDefault();
 
-            const contentRes = await fetch(blobs[0].url);
-            if (!contentRes.ok) throw new Error("Blob Fetch failed");
+            // FIX: Passing Authorization header required for Private Blobs
+            const contentRes = await fetch(blobs[0].url, {
+                headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` }
+            });
+            if (!contentRes.ok) throw new Error(`Blob Fetch failed: ${contentRes.status}`);
             
             const profile = UserProfileDTO.validate(await contentRes.json());
             UserMemoryCache.set(phone, profile);
@@ -363,7 +400,7 @@ class UserRepository {
         
         const saveOperation = async () => {
             await put(filePath, JSON.stringify(profileData), {
-                access: 'public', // CRITICAL FIX: Ensures save works properly on free Vercel tiers
+                access: 'private', // FIX: Specifically instructed to use private for private stores
                 addRandomSuffix: false,
                 token: AppConfig.blobToken
             });
@@ -385,7 +422,7 @@ class UserRepository {
 }
 
 // ============================================================================
-// PART 7: DATA TRANSFER OBJECTS (DTOs)
+// PART 8: DATA TRANSFER OBJECTS (DTOs)
 // ============================================================================
 
 class ChatMessageDTO {
@@ -443,7 +480,7 @@ class UserProfileDTO {
 }
 
 // ============================================================================
-// PART 8: EXTERNAL DATA SERVICES (NEWS & WEATHER - NO API KEYS NEEDED)
+// PART 9: EXTERNAL DATA SERVICES (NEWS & WEATHER - NO API KEYS NEEDED)
 // ============================================================================
 
 class ExternalDataService {
@@ -506,7 +543,7 @@ class ExternalDataService {
 }
 
 // ============================================================================
-// PART 9: YEMOT & GEMINI SERVICES
+// PART 10: YEMOT & GEMINI SERVICES
 // ============================================================================
 
 class YemotAPIService {
@@ -577,7 +614,9 @@ class GeminiAIService {
             } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed"); }
             
             // Build Context based on keywords!
-            let externalContext = "";
+            const dynamicDateString = DateTimeHelper.getHebrewDateTimeString(); // INJECT NATIVE JS DATE HERE
+            let externalContext = `מידע זמן אמת קריטי: ${dynamicDateString}\n`;
+            
             if (transcriptText) {
                 if (transcriptText.includes("מזג") || transcriptText.includes("אוויר")) {
                     externalContext += await ExternalDataService.getWeather() + "\n";
@@ -595,10 +634,10 @@ class GeminiAIService {
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
             if (yemotDateContext) {
-                systemInstructions += `\n\n[הקשר זמן אמת: ${yemotDateContext}].`;
+                systemInstructions += `\n\n[זמן קו ימות המשיח: ${yemotDateContext}].`;
             }
             if (externalContext) {
-                systemInstructions += `\n\nמידע חיצוני ששאבתי מהאינטרנט כעת כדי לעזור לך לענות נכון:\n${externalContext}`;
+                systemInstructions += `\n\nמידע חיצוני ששאבתי מהאינטרנט כעת כדי לעזור לך לענות נכון ומעודכן:\n${externalContext}`;
             }
 
             const formattedHistory = historyContext.map(msg => ({
@@ -646,7 +685,7 @@ class GeminiAIService {
 }
 
 // ============================================================================
-// PART 10: YEMOT IVR COMPILER (Intelligent Prompt Handling)
+// PART 11: YEMOT IVR COMPILER (Intelligent Prompt Handling)
 // ============================================================================
 
 class YemotResponseCompiler {
@@ -720,7 +759,7 @@ class YemotResponseCompiler {
 }
 
 // ============================================================================
-// PART 11: DOMAIN LOGIC & PAGINATION CONTROLLERS
+// PART 12: DOMAIN LOGIC & PAGINATION CONTROLLERS
 // ============================================================================
 
 class DomainControllers {
@@ -779,7 +818,7 @@ class DomainControllers {
     static async handleAdminMenu(choice, ivrCompiler) {
         if (choice === '1') {
             const stats = await GlobalStatsManager.getStats();
-            const statsText = `t-${SYSTEM_CONSTANTS.PROMPTS.ADMIN_STATS_PREFIX} נפתחו ${stats.totalSessions} שיחות, ${stats.totalSuccess} תשובות מוצלחות, ${stats.totalErrors} שגיאות. ויש ${stats.uniquePhones.length} משתמשים ייחודיים במערכת.`;
+            const statsText = `t-נפתחו ${stats.totalSessions} שיחות, ${stats.totalSuccess} תשובות מוצלחות, ${stats.totalErrors} שגיאות. ויש ${stats.uniquePhones.length} משתמשים ייחודיים במערכת.`;
             ivrCompiler.playChainedTTS(statsText);
             ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_MENU, 1, 1);
         } 
@@ -1189,7 +1228,7 @@ class DomainControllers {
 }
 
 // ============================================================================
-// PART 12: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER)
+// PART 13: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER)
 // ============================================================================
 
 function sendHTTPResponse(res, payloadString) {
@@ -1227,7 +1266,7 @@ export default async function handler(req, res) {
         const yemotDate = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.DATE) || '';
         const yemotTime = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.TIME) || '';
         const yemotHebrewDate = getParam(SYSTEM_CONSTANTS.YEMOT_PARAMS.HEBREW_DATE) || '';
-        const dateContextStr = `היום תאריך לועזי: ${yemotDate}. שעה נוכחית: ${yemotTime}. התאריך העברי היום הוא: ${yemotHebrewDate}.`;
+        const dateContextStr = `תאריך קו ימות המשיח הלועזי: ${yemotDate}. שעה: ${yemotTime}. התאריך העברי: ${yemotHebrewDate}.`;
 
         let triggerBaseKey = null;
         let triggerValue = null;
