@@ -5,7 +5,7 @@
  * @author Custom AI Assistant
  */
 
-import { kv } from '@vercel/kv';
+import { createClient } from '@supabase/supabase-js';
 
 export const maxDuration = 60; 
 
@@ -182,6 +182,7 @@ class ConfigManager {
 const AppConfig = new ConfigManager();
 
 // INIT SUPABASE CLIENT
+const supabase = AppConfig.supabaseUrl && AppConfig.supabaseKey ? createClient(AppConfig.supabaseUrl, AppConfig.supabaseKey) : null;
 
 // ============================================================================
 // PART 4: HEBREW NATIVE DATE & TIME ENGINE
@@ -309,48 +310,47 @@ class RetryHelper {
 
 class GlobalStatsManager {
     static async getStats() {
+        if (!supabase) return this.defaultStats();
         try {
-            return (await kv.get('global_system_stats')) || this.defaultStats();
-        } catch {
+            const { data, error } = await supabase.from('yemot_kv').select('value').eq('key', 'global_system_stats').single();
+            if (error && error.code !== 'PGRST116') throw error;
+            return data ? data.value : this.defaultStats();
+        } catch (error) {
+            Logger.warn("GlobalStats", "Supabase Fetch failed, using default.");
             return this.defaultStats();
         }
     }
 
     static async saveStats(statsObj) {
+        if (!supabase) return;
         try {
-            await kv.set('global_system_stats', statsObj);
-        } catch {}
+            await supabase.from('yemot_kv').upsert({ key: 'global_system_stats', value: statsObj });
+        } catch (error) {
+            Logger.warn("GlobalStats", "Failed to save stats to Supabase.");
+        }
     }
 
     static defaultStats() {
-        return {
-            totalSessions: 0,
-            totalSuccess: 0,
-            totalErrors: 0,
-            blockedPhones: [],
-            uniquePhones: []
-        };
+        return { totalSessions: 0, totalSuccess: 0, totalErrors: 0, blockedPhones: [], uniquePhones:[] };
     }
 
     static async recordEvent(phone, type) {
         const stats = await this.getStats();
-
         if (!stats.uniquePhones.includes(phone) && phone !== 'Unknown_Caller') {
             stats.uniquePhones.push(phone);
         }
-
         if (type === 'session') stats.totalSessions++;
         else if (type === 'success') stats.totalSuccess++;
         else if (type === 'error') stats.totalErrors++;
-
+        
         await this.saveStats(stats);
     }
-
+    
     static async checkBlocked(phone) {
         const stats = await this.getStats();
         return stats.blockedPhones.includes(phone);
     }
-
+    
     static async blockUser(phone) {
         const stats = await this.getStats();
         if (!stats.blockedPhones.includes(phone)) {
@@ -358,7 +358,7 @@ class GlobalStatsManager {
             await this.saveStats(stats);
         }
     }
-
+    
     static async unblockUser(phone) {
         const stats = await this.getStats();
         stats.blockedPhones = stats.blockedPhones.filter(p => p !== phone);
@@ -368,54 +368,55 @@ class GlobalStatsManager {
 
 const UserMemoryCache = new Map();
 
-const UserMemoryCache = new Map();
-
 class UserRepository {
     static async getProfile(phone) {
         if (!phone || phone === 'unknown') return UserProfileDTO.generateDefault();
+        if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
+        if (!supabase) return UserProfileDTO.generateDefault();
 
-        if (UserMemoryCache.has(phone)) {
-            return UserProfileDTO.validate(UserMemoryCache.get(phone));
-        }
-
-        try {
-            const data = await kv.get(`user_${phone}`);
-
-            if (!data) {
-                const fresh = UserProfileDTO.generateDefault();
-                UserMemoryCache.set(phone, fresh);
-                return fresh;
-            }
-
-            const validated = UserProfileDTO.validate(data);
+        const fetchOperation = async () => {
+            const { data, error } = await supabase.from('yemot_kv').select('value').eq('key', `user_${phone}`).single();
+            if (error && error.code !== 'PGRST116') throw error;
+            
+            if (!data) return UserProfileDTO.generateDefault();
+            const validated = UserProfileDTO.validate(data.value);
             UserMemoryCache.set(phone, validated);
             return validated;
+        };
 
-        } catch (err) {
-            console.warn("KV Fetch failed, using fallback");
-            const fresh = UserProfileDTO.generateDefault();
-            UserMemoryCache.set(phone, fresh);
-            return fresh;
+        try {
+            return await RetryHelper.withRetry(fetchOperation, "FetchUserDB", 2, 500);
+        } catch (error) {
+            Logger.warn("UserRepository", `DB Fetch failed. Using fresh profile.`);
+            const newProfile = UserProfileDTO.generateDefault();
+            UserMemoryCache.set(phone, newProfile);
+            return newProfile;
         }
     }
 
     static async saveProfile(phone, profileData) {
         if (!phone || phone === 'unknown') return;
-
+        
         UserMemoryCache.set(phone, profileData);
+        if (!supabase) return;
+        
+        const saveOperation = async () => {
+            const { error } = await supabase.from('yemot_kv').upsert({ key: `user_${phone}`, value: profileData });
+            if (error) throw error;
+        };
 
         try {
-            await kv.set(`user_${phone}`, profileData);
-        } catch (err) {
-            console.error("KV Save failed:", err.message);
+            await RetryHelper.withRetry(saveOperation, "SaveUserDB", 3, 500);
+            Logger.info("Storage", `Profile saved securely to Supabase for ${phone}.`);
+        } catch (error) {
+            Logger.error("Storage", `DB save failed for ${phone}. Relying on RAM Cache.`, error);
         }
     }
-
+    
     static async deleteProfile(phone) {
         UserMemoryCache.delete(phone);
-        try {
-            await kv.del(`user_${phone}`);
-        } catch {}
+        const newProfile = UserProfileDTO.generateDefault();
+        await this.saveProfile(phone, newProfile);
     }
 }
 
