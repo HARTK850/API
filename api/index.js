@@ -1,11 +1,11 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 32.0.0 (Diamond Edition - Deep Memory, Settings Menu, Vercel Blob Fix, Realtime News & Date)
+ * @version 34.0.0 (Supabase Database, Internal Web Scraper Restored, Settings & Deep Memory)
  * @author Custom AI Assistant
  */
 
-import { put, list } from '@vercel/blob';
+import { createClient } from '@supabase/supabase-js';
 
 export const maxDuration = 60; 
 
@@ -20,9 +20,7 @@ const SYSTEM_CONSTANTS = {
         AUDIO_MIME_TYPE: "audio/wav"
     },
     YEMOT_PATHS: {
-        RECORDINGS_DIR: "/ApiRecords",
-        USERS_DB_DIR: "users_v5/", // Updated directory to flush old buggy DBs
-        STATS_FILE: "global_system_stats_v3.json"
+        RECORDINGS_DIR: "/ApiRecords"
     },
     HTTP_STATUS: { OK: 200, INTERNAL_SERVER_ERROR: 500 },
     IVR_DEFAULTS: {
@@ -32,7 +30,7 @@ const SYSTEM_CONSTANTS = {
     },
     RETRY_POLICY: {
         MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2,
-        BLOB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
+        DB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
     },
     PROMPTS: {
         // --- USER LOCKED PROMPTS (DO NOT CHANGE) ---
@@ -146,7 +144,7 @@ class GeminiAPIError extends AppError { constructor(msg) { super(`Gemini Error: 
 class Logger {
     static getTimestamp() { return new Date().toISOString(); }
     static info(context, message) { console.log(`[INFO][${this.getTimestamp()}][${context}] ${message}`); }
-    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}] [${context}] ${message}`); }
+    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}][${context}] ${message}`); }
     static error(context, message, errorObj = null) {
         console.error(`[ERROR][${this.getTimestamp()}][${context}] ${message}`);
         if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
@@ -162,8 +160,12 @@ class ConfigManager {
         if (ConfigManager.instance) return ConfigManager.instance;
         this.geminiKeys =[];
         this.yemotToken = process.env.CALL2ALL_TOKEN || '';
-        this.blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
         this.adminPassword = process.env.ADMIN_PASSWORD || '15761576';
+        
+        // SUPABASE CREDENTIALS
+        this.supabaseUrl = process.env.SUPABASE_URL || '';
+        this.supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+
         this.currentGeminiKeyIndex = 0;
         if (process.env.GEMINI_KEYS) {
             this.geminiKeys = process.env.GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k.length > 20);
@@ -179,8 +181,40 @@ class ConfigManager {
 }
 const AppConfig = new ConfigManager();
 
+// INIT SUPABASE CLIENT
+const supabase = AppConfig.supabaseUrl && AppConfig.supabaseKey ? createClient(AppConfig.supabaseUrl, AppConfig.supabaseKey) : null;
+
 // ============================================================================
-// PART 4: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
+// PART 4: HEBREW NATIVE DATE & TIME ENGINE
+// ============================================================================
+
+class DateTimeHelper {
+    static getHebrewDateTimeString() {
+        try {
+            const jerusalemTimeStr = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' });
+            const jerusalemTime = new Date(jerusalemTimeStr);
+            
+            const days =['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+            const months =['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+            const dayName = days[jerusalemTime.getDay()];
+            const dayNum = jerusalemTime.getDate();
+            const monthName = months[jerusalemTime.getMonth()];
+            const year = jerusalemTime.getFullYear();
+            
+            const hours = jerusalemTime.getHours().toString().padStart(2, '0');
+            const minutes = jerusalemTime.getMinutes().toString().padStart(2, '0');
+
+            return `יום ${dayName}, ${dayNum} ב${monthName} ${year}, שעה ${hours}:${minutes} (שעון ישראל).`;
+        } catch (e) {
+            Logger.warn("DateTimeHelper", "Failed to generate dynamic Hebrew date.");
+            return "תאריך ושעה נוכחיים לא ידועים";
+        }
+    }
+}
+
+// ============================================================================
+// PART 5: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
 // ============================================================================
 
 const HEBREW_PHONETIC_MAP = {
@@ -246,7 +280,7 @@ class YemotTextProcessor {
 }
 
 // ============================================================================
-// PART 5: NETWORK RESILIENCE & RETRY HELPER
+// PART 6: NETWORK RESILIENCE & RETRY HELPER
 // ============================================================================
 
 class RetryHelper {
@@ -271,34 +305,28 @@ class RetryHelper {
 }
 
 // ============================================================================
-// PART 6: GLOBAL STATS & VERCEL BLOB STORAGE (PUBLIC ACCESS ENFORCED)
+// PART 7: GLOBAL STATS & SUPABASE STORAGE 
 // ============================================================================
-// FIX: Vercel Blob free tier requires 'public' access. 
 
 class GlobalStatsManager {
     static async getStats() {
-        const filePath = SYSTEM_CONSTANTS.YEMOT_PATHS.STATS_FILE;
+        if (!supabase) return this.defaultStats();
         try {
-            const { blobs } = await list({ prefix: filePath, token: AppConfig.blobToken });
-            if (!blobs || blobs.length === 0) return this.defaultStats();
-            const contentRes = await fetch(blobs[0].url);
-            if (!contentRes.ok) return this.defaultStats();
-            return await contentRes.json();
+            const { data, error } = await supabase.from('yemot_kv').select('value').eq('key', 'global_system_stats').single();
+            if (error && error.code !== 'PGRST116') throw error;
+            return data ? data.value : this.defaultStats();
         } catch (error) {
+            Logger.warn("GlobalStats", "Supabase Fetch failed, using default.");
             return this.defaultStats();
         }
     }
 
     static async saveStats(statsObj) {
-        const filePath = SYSTEM_CONSTANTS.YEMOT_PATHS.STATS_FILE;
+        if (!supabase) return;
         try {
-            await put(filePath, JSON.stringify(statsObj), {
-                access: 'public', // MUST BE PUBLIC FOR VERCEL BLOB
-                addRandomSuffix: false,
-                token: AppConfig.blobToken
-            });
+            await supabase.from('yemot_kv').upsert({ key: 'global_system_stats', value: statsObj });
         } catch (error) {
-            Logger.warn("GlobalStats", "Failed to save stats.");
+            Logger.warn("GlobalStats", "Failed to save stats to Supabase.");
         }
     }
 
@@ -341,29 +369,25 @@ class GlobalStatsManager {
 const UserMemoryCache = new Map();
 
 class UserRepository {
-    static _getUserFilePath(phone) { return `${SYSTEM_CONSTANTS.YEMOT_PATHS.USERS_DB_DIR}${phone}.json`; }
-
     static async getProfile(phone) {
         if (!phone || phone === 'unknown') return UserProfileDTO.generateDefault();
         if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
+        if (!supabase) return UserProfileDTO.generateDefault();
 
-        const filePath = this._getUserFilePath(phone);
         const fetchOperation = async () => {
-            const { blobs } = await list({ prefix: filePath, token: AppConfig.blobToken });
-            if (!blobs || blobs.length === 0) return UserProfileDTO.generateDefault();
-
-            const contentRes = await fetch(blobs[0].url);
-            if (!contentRes.ok) throw new Error("Blob Fetch failed");
+            const { data, error } = await supabase.from('yemot_kv').select('value').eq('key', `user_${phone}`).single();
+            if (error && error.code !== 'PGRST116') throw error;
             
-            const profile = UserProfileDTO.validate(await contentRes.json());
-            UserMemoryCache.set(phone, profile);
-            return profile;
+            if (!data) return UserProfileDTO.generateDefault();
+            const validated = UserProfileDTO.validate(data.value);
+            UserMemoryCache.set(phone, validated);
+            return validated;
         };
 
         try {
-            return await RetryHelper.withRetry(fetchOperation, "FetchUserBlob", 2, 500);
+            return await RetryHelper.withRetry(fetchOperation, "FetchUserDB", 2, 500);
         } catch (error) {
-            Logger.warn("UserRepository", `L2 Blob Fetch failed. Using fresh profile.`);
+            Logger.warn("UserRepository", `DB Fetch failed. Using fresh profile.`);
             const newProfile = UserProfileDTO.generateDefault();
             UserMemoryCache.set(phone, newProfile);
             return newProfile;
@@ -374,21 +398,18 @@ class UserRepository {
         if (!phone || phone === 'unknown') return;
         
         UserMemoryCache.set(phone, profileData);
-        const filePath = this._getUserFilePath(phone);
+        if (!supabase) return;
         
         const saveOperation = async () => {
-            await put(filePath, JSON.stringify(profileData), {
-                access: 'public', // MUST BE PUBLIC FOR VERCEL BLOB
-                addRandomSuffix: false,
-                token: AppConfig.blobToken
-            });
+            const { error } = await supabase.from('yemot_kv').upsert({ key: `user_${phone}`, value: profileData });
+            if (error) throw error;
         };
 
         try {
-            await RetryHelper.withRetry(saveOperation, "SaveUserBlob", 3, 500);
-            Logger.info("Storage", `Profile saved securely for ${phone}.`);
+            await RetryHelper.withRetry(saveOperation, "SaveUserDB", 3, 500);
+            Logger.info("Storage", `Profile saved securely to Supabase for ${phone}.`);
         } catch (error) {
-            Logger.error("Storage", `L2 Blob save failed for ${phone}. Relying on RAM Cache.`, error);
+            Logger.error("Storage", `DB save failed for ${phone}. Relying on RAM Cache.`, error);
         }
     }
     
@@ -400,7 +421,7 @@ class UserRepository {
 }
 
 // ============================================================================
-// PART 7: DATA TRANSFER OBJECTS (DTOs)
+// PART 8: DATA TRANSFER OBJECTS (DTOs)
 // ============================================================================
 
 class ChatMessageDTO {
@@ -472,14 +493,14 @@ class UserProfileDTO {
 }
 
 // ============================================================================
-// PART 8: EXTERNAL DATA SERVICES (NEWS, WIKI - NO API KEYS NEEDED)
+// PART 9: EXTERNAL DATA SERVICES (INTERNAL SCRAPERS FOR LIVE DATA)
 // ============================================================================
 
 class ExternalDataService {
     static async getWeather() {
         try {
             const url = "https://api.open-meteo.com/v1/forecast?latitude=31.769&longitude=35.216&current_weather=true&timezone=auto";
-            const res = await fetch(url);
+            const res = await fetch(url, { cache: 'no-store' });
             if (!res.ok) return "";
             const data = await res.json();
             return `מזג האוויר הנוכחי בירושלים הוא ${data.current_weather.temperature} מעלות צלזיוס. `;
@@ -490,7 +511,7 @@ class ExternalDataService {
         try {
             Logger.info("ExternalData", "Fetching JDN RSS news");
             const url = "https://www.jdn.co.il/feed/";
-            const res = await fetch(url);
+            const res = await fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
             if (!res.ok) return "";
             const xml = await res.text();
             
@@ -506,13 +527,13 @@ class ExternalDataService {
     static async searchWikipedia(query) {
         try {
             const searchUrl = `https://he.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&srlimit=1`;
-            const searchRes = await fetch(searchUrl);
+            const searchRes = await fetch(searchUrl, { cache: 'no-store' });
             const searchData = await searchRes.json();
             
             if (searchData.query && searchData.query.search && searchData.query.search.length > 0) {
                 const pageId = searchData.query.search[0].pageid;
                 const extractUrl = `https://he.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=1&explaintext=1&pageids=${pageId}`;
-                const extractRes = await fetch(extractUrl);
+                const extractRes = await fetch(extractUrl, { cache: 'no-store' });
                 const extractData = await extractRes.json();
                 
                 if (extractData.query && extractData.query.pages && extractData.query.pages[pageId]) {
@@ -526,7 +547,7 @@ class ExternalDataService {
 }
 
 // ============================================================================
-// PART 9: YEMOT & GEMINI SERVICES
+// PART 10: YEMOT & GEMINI SERVICES
 // ============================================================================
 
 class YemotAPIService {
@@ -575,7 +596,7 @@ class GeminiAIService {
     static async generateTopic(text) {
         try {
             const payload = {
-                contents: [{ role: "user", parts:[{ text: `קרא את הטקסט הבא ותן לו כותרת קצרה מאוד של 2 עד 4 מילים (ללא מרכאות, אמוג'י או תווים מיוחדים כלל) שמתארת את הנושא המרכזי שלו:\n\n${text.substring(0, 1000)}` }] }],
+                contents:[{ role: "user", parts:[{ text: `קרא את הטקסט הבא ותן לו כותרת קצרה מאוד של 2 עד 4 מילים (ללא מרכאות, אמוג'י או תווים מיוחדים כלל) שמתארת את הנושא המרכזי שלו:\n\n${text.substring(0, 1000)}` }] }],
                 generationConfig: { temperature: 0.3, maxOutputTokens: 20 }
             };
             const topic = await this.callGemini(payload);
@@ -596,8 +617,9 @@ class GeminiAIService {
                 transcriptText = typeof tr === 'string' ? tr : tr.transcription;
             } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed"); }
             
-            // Build Context based on keywords!
-            let externalContext = `מידע זמן אמת קריטי:\nהתאריך והשעה כעת: תאריך עברי ${yemotDateContext}, שעה ${yemotTimeContext}.\n`;
+            // Build Context using robust internal functions (No Google Tool required)
+            const dynamicDateString = DateTimeHelper.getHebrewDateTimeString(); 
+            let externalContext = `מידע זמנים קריטי: התאריך והשעה הנוכחיים עכשיו ממש הם: ${dynamicDateString}. תאריך עברי (המעודכן לפי ימות המשיח): ${yemotDateContext}. עליך להתייחס לזמן זה כתאריך הנוכחי לכל דבר ועניין ואין להמציא תאריכים אחרים!\n`;
             
             if (transcriptText) {
                 if (transcriptText.includes("מזג") || transcriptText.includes("אוויר")) {
@@ -606,29 +628,29 @@ class GeminiAIService {
                 if (transcriptText.includes("חדשות") || transcriptText.includes("עדכונים") || transcriptText.includes("קרה היום")) {
                     externalContext += await ExternalDataService.getHarediNews() + "\n";
                 }
-                if (transcriptText.length > 5) {
+                if (transcriptText.length > 6) {
                     const wiki = await ExternalDataService.searchWikipedia(transcriptText);
-                    if (wiki) externalContext += `מידע מויקיפדיה: ${wiki}\n`;
+                    if (wiki) externalContext += `\nמידע מויקיפדיה: ${wiki}\n`;
                 }
             }
             
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
             // INJECT PERSONALITY & SETTINGS
-            systemInstructions += `\n\n[הנחיות התנהגות אישיות מוגדרות מראש עבור המשתמש הזה]:\n`;
-            systemInstructions += `רמת פירוט נדרשת לתשובה (בסולם 1 עד 10, כאשר 10 זה הכי ארוך ומפורט): ${profile.aiDetailLevel}.\n`;
+            systemInstructions += `\n\n[הנחיות אישיות מהמשתמש (ציית להן לחלוטין!)]:\n`;
+            systemInstructions += `רמת פירוט התשובה (מ-1 עד 10, 10 הכי מפורט): ${profile.aiDetailLevel}.\n`;
             
             if (profile.ttsSpeed === "1") systemInstructions += `המשתמש אוהב הקראה איטית. ענה במשפטים קצרים מאוד ובמילים פשוטות.\n`;
             if (profile.ttsSpeed === "3") systemInstructions += `המשתמש אוהב הקראה מהירה. ענה ברצף זורם ומהיר.\n`;
             
             if (profile.personalProfile) {
-                systemInstructions += `מידע אישי על המשתמש (זכור זאת כדי לפתח קשר אישי): ${profile.personalProfile}\n`;
+                systemInstructions += `פרופיל המשתמש (זכור זאת כדי לפתח קשר אישי אמיתי! התייחס לזה בתשובותיך): ${profile.personalProfile}\n`;
             }
             if (profile.customInstructions) {
                 systemInstructions += `הנחיות מערכת קבועות שהמשתמש הגדיר לך (ציית להן!): ${profile.customInstructions}\n`;
             }
             if (externalContext) {
-                systemInstructions += `\nמידע חיצוני עדכני ששאבתי מהאינטרנט (הסתמך עליו במידת הצורך):\n${externalContext}`;
+                systemInstructions += `\nמידע חיצוני עדכני ששאבתי מהאינטרנט כעת (הסתמך עליו במידת הצורך):\n${externalContext}`;
             }
 
             // DEEP MEMORY: Inject ALL past chats (up to 30 messages total) to build strong context
@@ -645,6 +667,7 @@ class GeminiAIService {
             // Keep only the last 30 interactions to prevent token overflow
             deepHistoryContext = deepHistoryContext.slice(-30);
 
+            // Payload WITHOUT Google Search Tool
             const payload = {
                 contents:[
                     ...deepHistoryContext,
@@ -684,7 +707,7 @@ class GeminiAIService {
 }
 
 // ============================================================================
-// PART 10: YEMOT IVR COMPILER
+// PART 11: YEMOT IVR COMPILER
 // ============================================================================
 
 class YemotResponseCompiler {
@@ -759,7 +782,7 @@ class YemotResponseCompiler {
 }
 
 // ============================================================================
-// PART 11: DOMAIN LOGIC & PAGINATION CONTROLLERS
+// PART 12: DOMAIN LOGIC & PAGINATION CONTROLLERS
 // ============================================================================
 
 class DomainControllers {
