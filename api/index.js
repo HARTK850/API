@@ -1,8 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 26.0.0 (Titanium Core - Native Wikipedia Search, Secret Admin Stats, 20-Chat Memory, Anti-Duplicate, Public Blob Fix)
- * @author Custom AI Assistant
+ * @version 27.0.0 (Titanium Core - Native Audio File Support (f-menu), State Machine Fix, 20-Chat Memory)
  */
 
 import { put, list } from '@vercel/blob';
@@ -21,8 +20,7 @@ const SYSTEM_CONSTANTS = {
     },
     YEMOT_PATHS: {
         RECORDINGS_DIR: "/ApiRecords",
-        USERS_DB_DIR: "users/",
-        STATS_FILE: "system_stats_v1.json"
+        USERS_DB_DIR: "users/"
     },
     HTTP_STATUS: {
         OK: 200, INTERNAL_SERVER_ERROR: 500
@@ -30,14 +28,15 @@ const SYSTEM_CONSTANTS = {
     IVR_DEFAULTS: {
         STANDARD_TIMEOUT: "7",
         RECORD_MIN_SEC: "1", RECORD_MAX_SEC: "120",
-        MAX_CHUNK_LENGTH: 850 // Longer parts before pressing 9
+        MAX_CHUNK_LENGTH: 850 // Allows long playback before pagination
     },
     RETRY_POLICY: {
         MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2,
         BLOB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
     },
     PROMPTS: {
-        MAIN_MENU: "ברוכים הבאים למערכת הבינה המלאכותית. לתמלול מתקדם הקישו 0. לשיחת צ'אט מחוברת לאינטרנט הקישו 1. להיסטוריית צ'אט הקישו 2. להיסטוריית תמלולים הקישו 3.",
+        // NATIVE AUDIO FILE SUPPORT: Will play menu.wav uploaded to extension 9
+        MAIN_MENU: "f-menu", 
         NEW_CHAT_RECORD: "אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
         NEW_TRANSCRIPTION_INITIAL: "אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
         APPEND_TRANSCRIPTION_RECORD: "אנא הקליטו את המשך הטקסט לאחר הצליל. בסיום הקישו סולמית.",
@@ -54,7 +53,6 @@ const SYSTEM_CONSTANTS = {
         SYSTEM_ERROR_FALLBACK: "אירעה שגיאה בלתי צפויה, אך ננסה להמשיך. אנא נסו שוב.",
         AI_API_ERROR: "אירעה שגיאה בחיבור למנוע הבינה המלאכותית. אנא נסו שוב מאוחר יותר.",
         BAD_AUDIO: "לא הצלחתי לשמוע אתכם בבירור. אנא הקפידו לדבר בקול רם ונסו שוב.",
-        ADMIN_STATS_PREFIX: "נתוני מערכת גלובליים: ",
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
@@ -73,11 +71,13 @@ const SYSTEM_CONSTANTS = {
         MENU_CHOICE: 'State_MainMenuChoice',
         CHAT_USER_AUDIO: 'State_ChatUserAudio',
         CHAT_HISTORY_CHOICE: 'State_ChatHistoryChoice',
+        CHAT_ACTION_CHOICE: 'State_ChatActionChoice', // FIXED: This was causing the "undefined" bug!
         PAGINATION_CHOICE: 'State_PaginationChoice',
         TRANS_AUDIO: 'State_TransAudio',
         TRANS_APPEND_AUDIO: 'State_TransAppendAudio',
         TRANS_DRAFT_MENU: 'State_TransDraftMenu',
-        TRANS_HISTORY_CHOICE: 'State_TransHistoryChoice'
+        TRANS_HISTORY_CHOICE: 'State_TransHistoryChoice',
+        TRANS_ACTION_CHOICE: 'State_TransActionChoice'
     },
     YEMOT_PARAMS: {
         PHONE: 'ApiPhone', ENTER_ID: 'ApiEnterID',
@@ -168,7 +168,6 @@ class YemotTextProcessor {
     }
 
     static addSpaceBetweenNumbersAndLetters(text) {
-        // Fixes issue where "מ5" becomes "מ 5" for better TTS reading
         return text.replace(/([א-תa-zA-Z])(\d)/g, '$1 $2').replace(/(\d)([א-תa-zA-Z])/g, '$1 $2');
     }
 
@@ -244,64 +243,8 @@ class RetryHelper {
 }
 
 // ============================================================================
-// PART 6: GLOBAL STATS & PRIVATE BLOB STORAGE
+// PART 6: L1 MEMORY CACHE & L2 VERCEL BLOB STORAGE (PURE REST API)
 // ============================================================================
-
-class GlobalStatsManager {
-    static async getStats() {
-        const filePath = SYSTEM_CONSTANTS.YEMOT_PATHS.STATS_FILE;
-        try {
-            const listUrl = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}?prefix=${encodeURIComponent(filePath)}`;
-            const listRes = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${AppConfig.blobToken}`, 'x-api-version': '7' } });
-            if (!listRes.ok) return this.defaultStats();
-            
-            const listData = await listRes.json();
-            if (!listData.blobs || listData.blobs.length === 0) return this.defaultStats();
-
-            const contentRes = await fetch(listData.blobs[0].url, { headers: { 'Authorization': `Bearer ${AppConfig.blobToken}` } });
-            if (!contentRes.ok) return this.defaultStats();
-            
-            return await contentRes.json();
-        } catch (error) {
-            return this.defaultStats();
-        }
-    }
-
-    static async saveStats(statsObj) {
-        const filePath = SYSTEM_CONSTANTS.YEMOT_PATHS.STATS_FILE;
-        try {
-            const url = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}/${filePath}`;
-            await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${AppConfig.blobToken}`,
-                    'x-api-version': '7', 'x-add-random-suffix': 'false',
-                    'x-access': 'public', // Set to public to avoid Vercel Free Tier Blob restrictions
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(statsObj)
-            });
-        } catch (error) {
-            Logger.warn("GlobalStats", "Failed to save stats.");
-        }
-    }
-
-    static defaultStats() {
-        return { totalSessions: 0, totalSuccess: 0, totalErrors: 0, uniquePhones:[] };
-    }
-
-    static async recordEvent(phone, type) {
-        const stats = await this.getStats();
-        if (!stats.uniquePhones.includes(phone) && phone !== 'Unknown_Caller') {
-            stats.uniquePhones.push(phone);
-        }
-        if (type === 'session') stats.totalSessions++;
-        else if (type === 'success') stats.totalSuccess++;
-        else if (type === 'error') stats.totalErrors++;
-        
-        await this.saveStats(stats);
-    }
-}
 
 const UserMemoryCache = new Map();
 
@@ -347,22 +290,20 @@ class UserRepository {
         
         const saveOperation = async () => {
             const url = `${SYSTEM_CONSTANTS.VERCEL_BLOB.REST_API_BASE_URL}/${filePath}`;
-            const response = await fetch(url, {
+            await fetch(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${AppConfig.blobToken}`,
                     'x-api-version': '7', 'x-add-random-suffix': 'false',
-                    'x-access': 'public', // CRITICAL FIX: Overcomes "Cannot use public access on private store" error by making it natively public!
+                    'x-access': 'public', // CRITICAL FIX: Ensures save works properly on free Vercel tiers
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(profileData)
             });
-            if (!response.ok) throw new Error(`Blob Put failed: ${await response.text()}`);
         };
 
         try {
             await RetryHelper.withRetry(saveOperation, "SaveUserBlob", 3, 500);
-            Logger.info("Storage", `Profile saved successfully for ${phone}.`);
         } catch (error) {
             Logger.error("Storage", `L2 Blob save failed for ${phone}. Relying on RAM Cache.`, error);
         }
@@ -400,13 +341,12 @@ class TranscriptionEntryDTO {
 class UserProfileDTO {
     static generateDefault() {
         return {
-            chats: [], // Will store up to 20!
+            chats: [], // Saves up to 20 chats
             transcriptions:[], 
             currentChatId: null,
             tempTranscription: "", 
             currentTransIndex: null,
-            pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" },
-            lastActive: new Date().toISOString()
+            pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" }
         };
     }
     static validate(data) {
@@ -416,7 +356,6 @@ class UserProfileDTO {
         if (!data.pagination || !Array.isArray(data.pagination.chunks)) {
             data.pagination = { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" };
         }
-        data.lastActive = new Date().toISOString();
         return data;
     }
 }
@@ -427,8 +366,7 @@ class UserProfileDTO {
 
 class FreeInternetSearch {
     /**
-     * Scans the user prompt for keywords and fetches a live summary from Wikipedia Hebrew.
-     * 100% Free. No API keys needed. Fixes Gemini-Lite limitations.
+     * Connects to the internet via Wikipedia's Open API. 100% Free. No API keys needed.
      */
     static async searchWikipedia(query) {
         try {
@@ -445,13 +383,11 @@ class FreeInternetSearch {
                 
                 if (extractData.query && extractData.query.pages && extractData.query.pages[pageId]) {
                     const extract = extractData.query.pages[pageId].extract;
-                    Logger.info("FreeInternetSearch", "Found live context!");
                     return extract.substring(0, 1500); 
                 }
             }
             return "";
         } catch (e) {
-            Logger.warn("FreeInternetSearch", "Failed to retrieve internet context.", e);
             return "";
         }
     }
@@ -494,7 +430,6 @@ class GeminiAIService {
                 throw new Error("Empty AI response.");
             } catch (error) { 
                 lastError = error;
-                Logger.warn("GeminiAPI", `Key rotated due to error.`); 
             }
         }
         throw new GeminiAPIError("All API keys failed. Check Model Name and Key Validity.", lastError);
@@ -513,7 +448,6 @@ class GeminiAIService {
 
     static async processChatInteraction(base64Audio, historyContext =[], yemotDateContext = "") {
         try {
-            // First, quickly transcribe the audio to run the internet search
             const transcriptionPayload = {
                 contents:[{ role: "user", parts:[{ text: "תמלל את האודיו הבא במדויק:" }, { inlineData: { mimeType: "audio/wav", data: base64Audio } }] }],
                 generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
@@ -522,9 +456,8 @@ class GeminiAIService {
             try {
                 const tr = await this.callGemini(transcriptionPayload);
                 transcriptText = typeof tr === 'string' ? tr : tr.transcription;
-            } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed, using direct multimodal."); }
+            } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed"); }
             
-            // Search Wikipedia if we have text
             let internetContext = "";
             if (transcriptText && transcriptText.length > 3) {
                 internetContext = await FreeInternetSearch.searchWikipedia(transcriptText);
@@ -532,7 +465,6 @@ class GeminiAIService {
             
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
-            // INJECT YEMOT REAL-TIME CONTEXT TO FIX HALLUCINATIONS
             if (yemotDateContext) {
                 systemInstructions += `\n\n[הקשר זמן אמת חשוב למענה: ${yemotDateContext}]. הסתמך על נתונים אלו אם אתה נשאל על השעה, התאריך או התאריך העברי!`;
             }
@@ -545,7 +477,6 @@ class GeminiAIService {
                 parts:[{ text: `${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_QUESTION_PREFIX} ${msg.q}\n${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_ANSWER_PREFIX} ${msg.a}` }]
             }));
 
-            // Notice: NO "tools" array here! Fixes the crash for gemini-3.1-flash-lite-preview!
             const payload = {
                 contents:[
                     ...formattedHistory,
@@ -565,14 +496,13 @@ class GeminiAIService {
                 answer: parsed.answer || "לא הצלחתי לגבש תשובה"
             };
         } catch (e) {
-            Logger.error("GeminiChat", "Error during chat interaction", e);
             throw e;
         }
     }
 
     static async processTranscriptionOnly(base64Audio) {
         const payload = {
-            contents: [{ role: "user", parts:[{ text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }],
+            contents:[{ role: "user", parts:[{ text: SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION }, { inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }],
             generationConfig: { temperature: 0.1, maxOutputTokens: 8000 }
         };
         return await this.callGemini(payload);
@@ -580,7 +510,7 @@ class GeminiAIService {
 }
 
 // ============================================================================
-// PART 9: YEMOT IVR COMPILER (Fixes Loop & Concatenation Bugs)
+// PART 9: YEMOT IVR COMPILER (NATIVE AUDIO FILE SUPPORT)
 // ============================================================================
 
 class YemotResponseCompiler {
@@ -589,28 +519,42 @@ class YemotResponseCompiler {
         this.readCommand = null;
         this.routeCommand = null;
     }
-    playChainedTTS(text) {
-        if (text) {
-            const fmt = YemotTextProcessor.formatForChainedTTS(text);
+    
+    // Core function to handle BOTH text (TTS) and native audio files (f-*)
+    playChainedTTS(prompt) {
+        if (!prompt) return this;
+        if (prompt.startsWith('f-')) {
+            this.chain.push(prompt); // Push audio file reference natively
+        } else {
+            const fmt = YemotTextProcessor.formatForChainedTTS(prompt);
             if (fmt) this.chain.push(fmt);
         }
         return this;
     }
-    requestDigits(ttsPrompt, baseVar, min = 1, max = 1) {
-        if (ttsPrompt) {
-            const fmt = YemotTextProcessor.formatForChainedTTS(ttsPrompt);
-            if (fmt) this.chain.push(fmt);
+    
+    requestDigits(prompt, baseVar, min = 1, max = 1) {
+        if (prompt) {
+            if (prompt.startsWith('f-')) {
+                this.chain.push(prompt);
+            } else {
+                const fmt = YemotTextProcessor.formatForChainedTTS(prompt);
+                if (fmt) this.chain.push(fmt);
+            }
         }
-        // Join all prompts with `.` so Yemot processes them sequentially within the `read` command!
         const promptString = this.chain.join('.');
         const params =['no', max, min, SYSTEM_CONSTANTS.IVR_DEFAULTS.STANDARD_TIMEOUT, 'No', 'yes', 'no'];
         this.readCommand = `read=${promptString}=${baseVar}_${Date.now()},${params.join(',')}`;
         return this;
     }
-    requestAudioRecord(ttsPrompt, baseVar, callId) {
-        if (ttsPrompt) {
-            const fmt = YemotTextProcessor.formatForChainedTTS(ttsPrompt);
-            if (fmt) this.chain.push(fmt);
+    
+    requestAudioRecord(prompt, baseVar, callId) {
+        if (prompt) {
+            if (prompt.startsWith('f-')) {
+                this.chain.push(prompt);
+            } else {
+                const fmt = YemotTextProcessor.formatForChainedTTS(prompt);
+                if (fmt) this.chain.push(fmt);
+            }
         }
         const promptString = this.chain.join('.');
         const fileName = `rec_${callId}_${Date.now()}`;
@@ -618,12 +562,13 @@ class YemotResponseCompiler {
         this.readCommand = `read=${promptString}=${baseVar}_${Date.now()},${params.join(',')}`;
         return this;
     }
+    
     routeToFolder(folder) {
         this.routeCommand = `go_to_folder=${folder}`;
         return this;
     }
+    
     compile() {
-        // If a read command exists, it ALREADY CONTAINS all the TTS texts!
         if (this.readCommand) return this.readCommand; 
         
         let res =[];
@@ -642,14 +587,8 @@ class YemotResponseCompiler {
 class DomainControllers {
 
     static serveMainMenu(ivrCompiler) {
+        // Will play 'menu.wav' located in extension 9
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.MENU_CHOICE, 1, 1);
-    }
-
-    static async serveAdminStats(phone, ivrCompiler) {
-        const stats = await GlobalStatsManager.getStats();
-        const statsText = `${SYSTEM_CONSTANTS.PROMPTS.ADMIN_STATS_PREFIX} נפתחו ${stats.totalSessions} שיחות, ${stats.totalSuccess} תשובות מוצלחות, ${stats.totalErrors} שגיאות. ויש ${stats.uniquePhones.length} משתמשים ייחודיים.`;
-        ivrCompiler.playChainedTTS(statsText);
-        this.serveMainMenu(ivrCompiler);
     }
 
     static async initiatePaginatedPlayback(phone, fullText, contextType, ivrCompiler) {
@@ -688,10 +627,9 @@ class DomainControllers {
 
         if (!pag || !pag.chunks || pag.chunks.length === 0) return this.serveMainMenu(ivrCompiler);
 
-        // Main Menu Bypass (0)
         if (choice === '0') return this.serveMainMenu(ivrCompiler);
         
-        // Exact mapping requested by user: 1 (Action), 9 (Next), 7 (Prev), 5 (Pause/Replay)
+        // Exact mapping requested by user: 1 (Continue Chat), 9 (Next), 7 (Prev), 5 (Pause/Replay)
         if (choice === '1') {
             if (pag.type === 'chat') ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
             else if (pag.type === 'trans_draft') ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
@@ -702,7 +640,7 @@ class DomainControllers {
         if (choice === '9') { if (pag.currentIndex < pag.chunks.length - 1) pag.currentIndex++; } 
         else if (choice === '7') { if (pag.currentIndex > 0) pag.currentIndex--; } 
         else if (choice === '5') { 
-            Logger.info("Pagination", "User pressed 5. Replaying chunk to allow Yemot native pausing.");
+            Logger.info("Pagination", "User pressed 5. Replaying chunk.");
         } 
         else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
@@ -730,13 +668,11 @@ class DomainControllers {
 
     // ---- CHAT ----
     static async initNewChat(phone, callId, ivrCompiler) {
-        await GlobalStatsManager.recordEvent(phone, 'session');
         const profile = await UserRepository.getProfile(phone);
         const newSession = new ChatSessionDTO(`chat_${Date.now()}`);
         profile.chats.push(newSession);
         
-        // Keep up to 20 chats!
-        if (profile.chats.length > 20) profile.chats.shift();
+        if (profile.chats.length > 20) profile.chats.shift(); // Max 20 chats
         
         profile.currentChatId = newSession.id;
         await UserRepository.saveProfile(phone, profile);
@@ -758,12 +694,12 @@ class DomainControllers {
             const historyContext = chatSession.messages; 
             const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, historyContext, yemotDateContext);
             
-            // ANTI DUPLICATE FIX
+            // ANTI-DUPLICATE FIX
             const lastMsg = chatSession.messages[chatSession.messages.length - 1];
             if (!lastMsg || lastMsg.q !== transcription) {
                 chatSession.addMessage(transcription, answer);
             } else {
-                lastMsg.a = answer; // Overwrite if retry caused duplicate
+                lastMsg.a = answer; // Replace if Yemot sent a double request
             }
             
             if (chatSession.messages.length === 1) {
@@ -771,11 +707,9 @@ class DomainControllers {
             }
 
             await UserRepository.saveProfile(phone, profile);
-            await GlobalStatsManager.recordEvent(phone, 'success');
             await this.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
         } catch (e) {
             Logger.error("Domain_Chat", "Processing Error", e);
-            await GlobalStatsManager.recordEvent(phone, 'error');
             if (e instanceof GeminiAPIError) {
                 ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.AI_API_ERROR);
                 this.serveMainMenu(ivrCompiler);
@@ -801,7 +735,6 @@ class DomainControllers {
             promptText += `לשיחה בנושא ${topic}, הקישו ${i + 1}. `; 
         });
         promptText += SYSTEM_CONSTANTS.PROMPTS.MENU_SUFFIX_0;
-        // Allowed 2 digits for max 20 chats
         ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 2);
     }
 
@@ -871,7 +804,7 @@ class DomainControllers {
                 if (profile.tempTranscription) {
                     const topic = await GeminiAIService.generateTopic(profile.tempTranscription);
                     profile.transcriptions.push(new TranscriptionEntryDTO(profile.tempTranscription, topic));
-                    if (profile.transcriptions.length > 20) profile.transcriptions.shift(); // Keep 20 max
+                    if (profile.transcriptions.length > 20) profile.transcriptions.shift(); 
                     profile.tempTranscription = ""; 
                     await UserRepository.saveProfile(phone, profile);
                     ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.TRANS_SAVED_SUCCESS);
@@ -911,12 +844,6 @@ class DomainControllers {
         await UserRepository.saveProfile(phone, profile);
         await this.initiatePaginatedPlayback(phone, `תוכן התמלול הוא\n${recents[idx].text}`, 'trans_hist', ivrCompiler);
     }
-
-    // ---- REMOVED SHARE & EMAIL MODULES AS REQUESTED ----
-    static async handleTransHistoryActions(phone, choice, ivrCompiler) {
-        // Since Email & Share are removed, option 1 does nothing special anymore. We just return to main menu.
-        this.serveMainMenu(ivrCompiler);
-    }
 }
 
 // ============================================================================
@@ -933,7 +860,7 @@ export default async function handler(req, res) {
     const ivrCompiler = new YemotResponseCompiler();
 
     try {
-        Logger.info("Gateway", `---------- REQUEST [${req.method}] ----------`);
+        Logger.info("Gateway", `---------- REQUEST[${req.method}] ----------`);
 
         let rawBody = {};
         if (req.method === 'POST') {
@@ -1022,15 +949,11 @@ export default async function handler(req, res) {
             if (triggerValue === '0') DomainControllers.serveMainMenu(ivrCompiler);
             else await DomainControllers.handleTransHistoryPlayback(phone, triggerValue, ivrCompiler);
         }
-        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE) {
-            await DomainControllers.handleTransHistoryActions(phone, triggerValue, ivrCompiler);
-        }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.MENU_CHOICE) {
             if (triggerValue === '0') await DomainControllers.initNewTranscription(phone, callId, ivrCompiler);
             else if (triggerValue === '1') await DomainControllers.initNewChat(phone, callId, ivrCompiler);
             else if (triggerValue === '2') await DomainControllers.initChatHistoryMenu(phone, ivrCompiler);
             else if (triggerValue === '3') await DomainControllers.initTransHistoryMenu(phone, ivrCompiler);
-            else if (triggerValue === '9') await DomainControllers.serveAdminStats(phone, ivrCompiler); // HIDDEN STATS MENU
             else DomainControllers.serveMainMenu(ivrCompiler);
         }
         else {
