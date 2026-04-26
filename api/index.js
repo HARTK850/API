@@ -39,8 +39,8 @@ const SYSTEM_CONSTANTS = {
     // Example: MAIN_MENU: "f-main_menu" (and upload main_menu.wav to Yemot)
     // ========================================================================
     PROMPTS: {
-        MAIN_MENU: "t-ברוכים הבאים למערכת הבינה המלאכותית. לתפריט תמלולים הקישו 0. לשיחת צ'אט מחוברת לאינטרנט הקישו 1. להיסטוריית צ'אט הקישו 2. לניהול, הקישו 9.",
-        TRANS_MAIN_MENU: "t-תפריט תמלולים. לתמלול חדש הקישו 1. להיסטוריית תמלולים הקישו 2. לחזרה לתפריט הראשי הקישו 0.",
+        MAIN_MENU: "f-main_menu",
+        TRANS_MAIN_MENU: "f-trans_main_menu",
         
         NEW_CHAT_RECORD: "t-אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
         NEW_TRANSCRIPTION_INITIAL: "t-אנא הקליטו את הטקסט לתמלול לאחר הצליל. בסיום הקישו סולמית.",
@@ -60,8 +60,8 @@ const SYSTEM_CONSTANTS = {
         TRANS_PAGINATION_MENU: "t-לשמיעת המשך התמלול הקישו 9. לחלק הקודם הקישו 7. להשהייה הקישו 5. למעבר לאפשרויות התמלול הקישו 1. לחזרה לתפריט הקודם הקישו 0.",
         
         // HISTORY ITEM MANAGEMENT MENUS
-        HISTORY_ITEM_MENU: "t-תפריט ניהול פריט היסטוריה. להשמעה הקישו 1. לשינוי שם הקישו 2. למחיקה הקישו 3. להצמדה או ביטול הצמדה הקישו 4. לחזרה הקישו 0.",
-        DELETE_CONFIRM_MENU: "t-האם אתם בטוחים שברצונכם למחוק פריט זה? לאישור ומחיקה הקישו 1. לביטול וחזרה הקישו 2.",
+        HISTORY_ITEM_MENU: "f-history_item_menu",
+        DELETE_CONFIRM_MENU: "f-delete_confirm_menu",
         RENAME_PROMPT: "t-אנא הקלידו את השם החדש באמצעות המקלדת, בסיום הקישו סולמית.",
         ACTION_SUCCESS: "t-הפעולה בוצעה בהצלחה.",
         
@@ -597,16 +597,30 @@ class GeminiAIService {
                 generationConfig: { temperature: 0.7, maxOutputTokens: 8000, responseMimeType: SYSTEM_CONSTANTS.MODELS.JSON_MIME_TYPE }
             };
 
-            const rawJson = await this.callGemini(payload);
+const rawJson = await this.callGemini(payload);
             let cleanJson = rawJson.trim();
-            if (cleanJson.startsWith("```json")) cleanJson = cleanJson.substring(7, cleanJson.length - 3).trim();
-            else if (cleanJson.startsWith("```")) cleanJson = cleanJson.substring(3, cleanJson.length - 3).trim();
             
-            const parsed = JSON.parse(cleanJson);
-            return {
-                transcription: parsed.transcription || transcriptText || "לא זוהה דיבור",
-                answer: parsed.answer || "לא הצלחתי לגבש תשובה"
-            };
+            // ניקוי תגיות Markdown של קוד
+            cleanJson = cleanJson.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+
+            try {
+                const parsed = JSON.parse(cleanJson);
+                return {
+                    transcription: parsed.transcription || transcriptText || "לא זוהה דיבור",
+                    answer: parsed.answer || "לא הצלחתי לגבש תשובה"
+                };
+            } catch (parseError) {
+                Logger.warn("GeminiChat", "JSON Parse failed, attempting manual recovery", parseError);
+                
+                // ניסיון חילוץ ידני אם ה-JSON פגום (למשל אם יש גרשיים פנימיים שלא עברו Escape)
+                const answerMatch = cleanJson.match(/"answer":\s*"([\s\S]*)"/);
+                const transMatch = cleanJson.match(/"transcription":\s*"([\s\S]*?)"/);
+                
+                return {
+                    transcription: transMatch ? transMatch[1] : (transcriptText || "לא זוהה דיבור"),
+                    answer: answerMatch ? answerMatch[1] : cleanJson // מוציא את כל הטקסט אם החילוץ נכשל
+                };
+            }
         } catch (e) {
             throw e;
         }
