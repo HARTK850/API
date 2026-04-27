@@ -1,11 +1,11 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 34.0.0 (Supabase Database, Internal Web Scraper Restored, Settings & Deep Memory)
+ * @version 35.0.0 (Vercel KV Redis, Advanced Settings Flow, Validation Menus, Stable Gemini)
  * @author Custom AI Assistant
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { kv } from '@vercel/kv';
 
 export const maxDuration = 60; 
 
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
+        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", // FIX: Changed to stable model!
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
@@ -30,7 +30,7 @@ const SYSTEM_CONSTANTS = {
     },
     RETRY_POLICY: {
         MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2,
-        DB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
+        KV_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
     },
     PROMPTS: {
         // --- USER LOCKED PROMPTS (DO NOT CHANGE) ---
@@ -72,13 +72,16 @@ const SYSTEM_CONSTANTS = {
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
         // --------------------------------------------
 
-        // --- NEW SETTINGS PROMPTS ---
-        SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת מהירות ההקראה הקישו 1. להגדרת רמת פירוט התשובה הקישו 2. להקלטת הנחיות מערכת קבועות הקישו 3. להקלטת פרופיל אישי והעדפות הקישו 4. לחזרה לתפריט הראשי הקישו כוכבית.",
-        SETTINGS_SPEED: "t-אנא הקישו את רמת מהירות ההקראה. הקישו 1 למהירות איטית, 2 לרגילה, או 3 למהירה. בסיום הקישו סולמית.",
+        // --- NEW ADVANCED SETTINGS PROMPTS ---
+        SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
         SETTINGS_DETAIL: "t-אנא הקישו את רמת פירוט התשובה מ-1 עד 10, כאשר 1 זה תשובות קצרות מאוד ו-10 זה תשובות ארוכות ומפורטות מאוד. בסיום הקישו סולמית.",
-        SETTINGS_INSTRUCTIONS_RECORD: "t-אנא הקליטו הנחיות שתרצו שהבינה המלאכותית תפעל לפיהן תמיד. למשל, סגנון דיבור או כללים. בסיום ההקלטה הקישו סולמית.",
-        SETTINGS_PROFILE_RECORD: "t-אנא הקליטו פרטים על עצמכם, מה אתם אוהבים, תחביבים וכל מידע שתרצו שהבינה המלאכותית תזכור עליכם בשיחות הבאות. בסיום הקישו סולמית.",
-        SETTINGS_PROCESSING: "t-מעבד את ההקלטה ושומר את ההגדרות, אנא המתינו...",
+        SETTINGS_EXISTING_PROMPT: "t-המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה הקישו 0.",
+        SETTINGS_INSTRUCTIONS_RECORD: "t-אנא הקליטו הנחיות שתרצו שהבינה המלאכותית תפעל לפיהן תמיד. בסיום ההקלטה הקישו סולמית.",
+        SETTINGS_PROFILE_RECORD: "t-אנא הקליטו פרטים על עצמכם, מה אתם אוהבים, ותחביבים. בסיום הקישו סולמית.",
+        SETTINGS_PROCESSING: "t-מעבד את ההקלטה, אנא המתינו...",
+        SETTINGS_CONFIRM_PREFIX: "t-הטקסט שזוהה הוא: ",
+        SETTINGS_CONFIRM_MENU: "t-לאישור ושמירה הקישו 1. להקלטה מחדש הקישו 2. לביטול הקישו 0.",
+        SETTINGS_DELETED: "t-המידע נמחק בהצלחה.",
         
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
 אתה עוזר קולי וירטואלי חכם בשפה העברית.
@@ -115,10 +118,15 @@ const SYSTEM_CONSTANTS = {
         
         // SETTINGS MENU STATES
         SETTINGS_MENU_CHOICE: 'State_SettingsMenuChoice',
-        SETTINGS_SPEED_INPUT: 'State_SettingsSpeedInput',
         SETTINGS_DETAIL_INPUT: 'State_SettingsDetailInput',
-        SETTINGS_INSTRUCTIONS_AUDIO: 'State_SettingsInstructionsAudio',
-        SETTINGS_PROFILE_AUDIO: 'State_SettingsProfileAudio'
+        
+        SETTINGS_INSTRUCTIONS_CHECK: 'State_SetInstCheck',
+        SETTINGS_INSTRUCTIONS_AUDIO: 'State_SetInstAudio',
+        SETTINGS_INSTRUCTIONS_CONFIRM: 'State_SetInstConfirm',
+        
+        SETTINGS_PROFILE_CHECK: 'State_SetProfCheck',
+        SETTINGS_PROFILE_AUDIO: 'State_SetProfAudio',
+        SETTINGS_PROFILE_CONFIRM: 'State_SetProfConfirm'
     },
     YEMOT_PARAMS: {
         PHONE: 'ApiPhone', ENTER_ID: 'ApiEnterID',
@@ -144,7 +152,7 @@ class GeminiAPIError extends AppError { constructor(msg) { super(`Gemini Error: 
 class Logger {
     static getTimestamp() { return new Date().toISOString(); }
     static info(context, message) { console.log(`[INFO][${this.getTimestamp()}][${context}] ${message}`); }
-    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}][${context}] ${message}`); }
+    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}] [${context}] ${message}`); }
     static error(context, message, errorObj = null) {
         console.error(`[ERROR][${this.getTimestamp()}][${context}] ${message}`);
         if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
@@ -161,11 +169,6 @@ class ConfigManager {
         this.geminiKeys =[];
         this.yemotToken = process.env.CALL2ALL_TOKEN || '';
         this.adminPassword = process.env.ADMIN_PASSWORD || '15761576';
-        
-        // SUPABASE CREDENTIALS
-        this.supabaseUrl = process.env.SUPABASE_URL || '';
-        this.supabaseKey = process.env.SUPABASE_ANON_KEY || '';
-
         this.currentGeminiKeyIndex = 0;
         if (process.env.GEMINI_KEYS) {
             this.geminiKeys = process.env.GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k.length > 20);
@@ -180,9 +183,6 @@ class ConfigManager {
     }
 }
 const AppConfig = new ConfigManager();
-
-// INIT SUPABASE CLIENT
-const supabase = AppConfig.supabaseUrl && AppConfig.supabaseKey ? createClient(AppConfig.supabaseUrl, AppConfig.supabaseKey) : null;
 
 // ============================================================================
 // PART 4: HEBREW NATIVE DATE & TIME ENGINE
@@ -305,28 +305,25 @@ class RetryHelper {
 }
 
 // ============================================================================
-// PART 7: GLOBAL STATS & SUPABASE STORAGE 
+// PART 7: GLOBAL STATS & VERCEL KV STORAGE (SUPER FAST DATABASE)
 // ============================================================================
 
 class GlobalStatsManager {
     static async getStats() {
-        if (!supabase) return this.defaultStats();
         try {
-            const { data, error } = await supabase.from('yemot_kv').select('value').eq('key', 'global_system_stats').single();
-            if (error && error.code !== 'PGRST116') throw error;
-            return data ? data.value : this.defaultStats();
+            const stats = await kv.get('global_system_stats');
+            return stats || this.defaultStats();
         } catch (error) {
-            Logger.warn("GlobalStats", "Supabase Fetch failed, using default.");
+            Logger.warn("GlobalStats", "KV Fetch failed, using default.");
             return this.defaultStats();
         }
     }
 
     static async saveStats(statsObj) {
-        if (!supabase) return;
         try {
-            await supabase.from('yemot_kv').upsert({ key: 'global_system_stats', value: statsObj });
+            await kv.set('global_system_stats', statsObj);
         } catch (error) {
-            Logger.warn("GlobalStats", "Failed to save stats to Supabase.");
+            Logger.warn("GlobalStats", "Failed to save stats to KV.");
         }
     }
 
@@ -372,22 +369,19 @@ class UserRepository {
     static async getProfile(phone) {
         if (!phone || phone === 'unknown') return UserProfileDTO.generateDefault();
         if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
-        if (!supabase) return UserProfileDTO.generateDefault();
 
         const fetchOperation = async () => {
-            const { data, error } = await supabase.from('yemot_kv').select('value').eq('key', `user_${phone}`).single();
-            if (error && error.code !== 'PGRST116') throw error;
-            
-            if (!data) return UserProfileDTO.generateDefault();
-            const validated = UserProfileDTO.validate(data.value);
+            const profile = await kv.get(`user_profile:${phone}`);
+            if (!profile) return UserProfileDTO.generateDefault();
+            const validated = UserProfileDTO.validate(profile);
             UserMemoryCache.set(phone, validated);
             return validated;
         };
 
         try {
-            return await RetryHelper.withRetry(fetchOperation, "FetchUserDB", 2, 500);
+            return await RetryHelper.withRetry(fetchOperation, "FetchUserKV", 2, 500);
         } catch (error) {
-            Logger.warn("UserRepository", `DB Fetch failed. Using fresh profile.`);
+            Logger.warn("UserRepository", `KV Fetch failed. Using fresh profile.`);
             const newProfile = UserProfileDTO.generateDefault();
             UserMemoryCache.set(phone, newProfile);
             return newProfile;
@@ -398,18 +392,16 @@ class UserRepository {
         if (!phone || phone === 'unknown') return;
         
         UserMemoryCache.set(phone, profileData);
-        if (!supabase) return;
         
         const saveOperation = async () => {
-            const { error } = await supabase.from('yemot_kv').upsert({ key: `user_${phone}`, value: profileData });
-            if (error) throw error;
+            await kv.set(`user_profile:${phone}`, profileData);
         };
 
         try {
-            await RetryHelper.withRetry(saveOperation, "SaveUserDB", 3, 500);
-            Logger.info("Storage", `Profile saved securely to Supabase for ${phone}.`);
+            await RetryHelper.withRetry(saveOperation, "SaveUserKV", 3, 500);
+            Logger.info("Storage", `Profile saved securely to KV for ${phone}.`);
         } catch (error) {
-            Logger.error("Storage", `DB save failed for ${phone}. Relying on RAM Cache.`, error);
+            Logger.error("Storage", `KV save failed for ${phone}. Relying on RAM Cache.`, error);
         }
     }
     
@@ -467,7 +459,10 @@ class UserProfileDTO {
             aiDetailLevel: "5",
             customInstructions: "",
             personalProfile: "",
-            ttsSpeed: "2", // 1=Slow, 2=Normal, 3=Fast
+            
+            // TEMPORARY SETTINGS FOR CONFIRMATION
+            tempSettingsTranscription: "",
+            settingsActionType: "overwrite", // 'overwrite' or 'append'
             
             pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" }
         };
@@ -480,11 +475,11 @@ class UserProfileDTO {
             data.pagination = { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" };
         }
         
-        // Ensure new settings fields exist
         if (!data.aiDetailLevel) data.aiDetailLevel = "5";
         if (!data.customInstructions) data.customInstructions = "";
         if (!data.personalProfile) data.personalProfile = "";
-        if (!data.ttsSpeed) data.ttsSpeed = "2";
+        if (!data.tempSettingsTranscription) data.tempSettingsTranscription = "";
+        if (!data.settingsActionType) data.settingsActionType = "overwrite";
         
         data.chats.forEach(c => { if (c.pinned === undefined) c.pinned = false; });
         data.transcriptions.forEach(t => { if (t.pinned === undefined) t.pinned = false; });
@@ -515,7 +510,6 @@ class ExternalDataService {
             if (!res.ok) return "";
             const xml = await res.text();
             
-            // STRICT REGEX: Extract items only, bypassing the main site title.
             const items =[...xml.matchAll(/<item>[\s\S]*?<title><!\[CDATA\[(.*?)\]\]><\/title>/g)];
             if (items.length < 1) return "";
             
@@ -606,7 +600,6 @@ class GeminiAIService {
 
     static async processChatInteraction(base64Audio, profile, yemotDateContext = "", yemotTimeContext = "") {
         try {
-            // First, quick transcription to detect intent
             const transcriptionPayload = {
                 contents:[{ role: "user", parts:[{ text: "תמלל את האודיו הבא במדויק:" }, { inlineData: { mimeType: "audio/wav", data: base64Audio } }] }],
                 generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
@@ -617,7 +610,6 @@ class GeminiAIService {
                 transcriptText = typeof tr === 'string' ? tr : tr.transcription;
             } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed"); }
             
-            // Build Context using robust internal functions (No Google Tool required)
             const dynamicDateString = DateTimeHelper.getHebrewDateTimeString(); 
             let externalContext = `מידע זמנים קריטי: התאריך והשעה הנוכחיים עכשיו ממש הם: ${dynamicDateString}. תאריך עברי (המעודכן לפי ימות המשיח): ${yemotDateContext}. עליך להתייחס לזמן זה כתאריך הנוכחי לכל דבר ועניין ואין להמציא תאריכים אחרים!\n`;
             
@@ -636,12 +628,8 @@ class GeminiAIService {
             
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
-            // INJECT PERSONALITY & SETTINGS
             systemInstructions += `\n\n[הנחיות אישיות מהמשתמש (ציית להן לחלוטין!)]:\n`;
             systemInstructions += `רמת פירוט התשובה (מ-1 עד 10, 10 הכי מפורט): ${profile.aiDetailLevel}.\n`;
-            
-            if (profile.ttsSpeed === "1") systemInstructions += `המשתמש אוהב הקראה איטית. ענה במשפטים קצרים מאוד ובמילים פשוטות.\n`;
-            if (profile.ttsSpeed === "3") systemInstructions += `המשתמש אוהב הקראה מהירה. ענה ברצף זורם ומהיר.\n`;
             
             if (profile.personalProfile) {
                 systemInstructions += `פרופיל המשתמש (זכור זאת כדי לפתח קשר אישי אמיתי! התייחס לזה בתשובותיך): ${profile.personalProfile}\n`;
@@ -653,8 +641,7 @@ class GeminiAIService {
                 systemInstructions += `\nמידע חיצוני עדכני ששאבתי מהאינטרנט כעת (הסתמך עליו במידת הצורך):\n${externalContext}`;
             }
 
-            // DEEP MEMORY: Inject ALL past chats (up to 30 messages total) to build strong context
-            let deepHistoryContext = [];
+            let deepHistoryContext =[];
             const allChats = profile.chats ||[];
             allChats.forEach(chat => {
                 chat.messages.forEach(msg => {
@@ -664,10 +651,8 @@ class GeminiAIService {
                     });
                 });
             });
-            // Keep only the last 30 interactions to prevent token overflow
             deepHistoryContext = deepHistoryContext.slice(-30);
 
-            // Payload WITHOUT Google Search Tool
             const payload = {
                 contents:[
                     ...deepHistoryContext,
@@ -734,8 +719,7 @@ class YemotResponseCompiler {
         return this;
     }
     
-    // ALLOW ASTERISK IN MAIN MENUS by setting blockAsterisk='no'
-    requestDigits(prompt, baseVar, min = 1, max = 1, blockAsterisk = 'no') {
+    requestDigits(prompt, baseVar, min = 1, max = 1, blockAsterisk = 'yes') {
         const processed = this._processPrompt(prompt);
         if (processed) this.chain.push(processed);
         
@@ -782,7 +766,7 @@ class YemotResponseCompiler {
 }
 
 // ============================================================================
-// PART 12: DOMAIN LOGIC & PAGINATION CONTROLLERS
+// PART 12: DOMAIN LOGIC & CONTROLLERS
 // ============================================================================
 
 class DomainControllers {
@@ -808,7 +792,7 @@ class DomainControllers {
         else if (choice === '1') await this.initNewChat(phone, callId, ivrCompiler);
         else if (choice === '2') await this.initChatHistoryMenu(phone, ivrCompiler);
         else if (choice === '9') await this.serveAdminAuth(ivrCompiler);
-        else if (choice === '*') await this.serveSettingsMenu(phone, ivrCompiler); // SETTINGS MENU
+        else if (choice === '*') await this.serveSettingsMenu(phone, ivrCompiler); 
         else {
             ivrCompiler.routeToFolder(choice);
         }
@@ -826,19 +810,31 @@ class DomainControllers {
 
     // ---- SETTINGS DOMAIN ----
     static async serveSettingsMenu(phone, ivrCompiler) {
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_MENU, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_MENU_CHOICE, 1, 1, 'no');
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_MENU, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_MENU_CHOICE, 1, 1, 'no'); // Allowed 0 for return
     }
 
     static async handleSettingsMenuChoice(phone, callId, choice, ivrCompiler) {
         if (choice === '1') {
-            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_SPEED, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_SPEED_INPUT, 1, 1);
-        } else if (choice === '2') {
             ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_DETAIL, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_DETAIL_INPUT, 1, 2);
+        } else if (choice === '2') {
+            const profile = await UserRepository.getProfile(phone);
+            if (profile.customInstructions && profile.customInstructions.length > 2) {
+                ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_EXISTING_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_CHECK, 1, 1, 'no');
+            } else {
+                profile.settingsActionType = 'overwrite';
+                await UserRepository.saveProfile(phone, profile);
+                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_INSTRUCTIONS_RECORD, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO, callId);
+            }
         } else if (choice === '3') {
-            ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_INSTRUCTIONS_RECORD, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO, callId);
-        } else if (choice === '4') {
-            ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_PROFILE_RECORD, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO, callId);
-        } else if (choice === '*') {
+            const profile = await UserRepository.getProfile(phone);
+            if (profile.personalProfile && profile.personalProfile.length > 2) {
+                ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_EXISTING_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_CHECK, 1, 1, 'no');
+            } else {
+                profile.settingsActionType = 'overwrite';
+                await UserRepository.saveProfile(phone, profile);
+                ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_PROFILE_RECORD, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO, callId);
+            }
+        } else if (choice === '0') {
             this.serveMainMenu(ivrCompiler);
         } else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
@@ -846,12 +842,25 @@ class DomainControllers {
         }
     }
 
-    static async handleSettingsSpeedInput(phone, speed, ivrCompiler) {
+    static async handleSettingsCheckChoice(phone, callId, choice, settingType, ivrCompiler) {
+        if (choice === '0') return this.serveSettingsMenu(phone, ivrCompiler);
+        
         const profile = await UserRepository.getProfile(phone);
-        profile.ttsSpeed = speed;
+        if (choice === '3') {
+            if (settingType === 'instructions') profile.customInstructions = "";
+            if (settingType === 'profile') profile.personalProfile = "";
+            await UserRepository.saveProfile(phone, profile);
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_DELETED);
+            return this.serveSettingsMenu(phone, ivrCompiler);
+        }
+
+        profile.settingsActionType = (choice === '2') ? 'append' : 'overwrite';
         await UserRepository.saveProfile(phone, profile);
-        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ACTION_SUCCESS);
-        this.serveSettingsMenu(phone, ivrCompiler);
+
+        const prompt = (settingType === 'instructions') ? SYSTEM_CONSTANTS.PROMPTS.SETTINGS_INSTRUCTIONS_RECORD : SYSTEM_CONSTANTS.PROMPTS.SETTINGS_PROFILE_RECORD;
+        const baseState = (settingType === 'instructions') ? SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO : SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO;
+        
+        ivrCompiler.requestAudioRecord(prompt, baseState, callId);
     }
 
     static async handleSettingsDetailInput(phone, detailLevel, ivrCompiler) {
@@ -862,24 +871,59 @@ class DomainControllers {
         this.serveSettingsMenu(phone, ivrCompiler);
     }
 
-    static async processSettingsAudio(phone, audioPath, settingType, ivrCompiler) {
+    static async processSettingsAudio(phone, callId, audioPath, settingType, ivrCompiler) {
         try {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_PROCESSING);
             const b64 = await YemotAPIService.downloadAudioAsBase64(audioPath);
             const text = await GeminiAIService.processTranscriptionOnly(b64);
             const profile = await UserRepository.getProfile(phone);
             
-            if (settingType === 'instructions') {
-                profile.customInstructions = text;
-            } else if (settingType === 'profile') {
-                profile.personalProfile = text;
-            }
-            
+            profile.tempSettingsTranscription = text;
             await UserRepository.saveProfile(phone, profile);
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ACTION_SUCCESS);
+            
+            const playbackPrompt = `${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_PREFIX} ${text}. ${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_MENU}`;
+            const stateBase = (settingType === 'instructions') ? SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_CONFIRM : SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_CONFIRM;
+            
+            ivrCompiler.requestDigits(playbackPrompt, stateBase, 1, 1, 'no');
+            
         } catch (e) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.BAD_AUDIO);
+            this.serveSettingsMenu(phone, ivrCompiler);
         }
+    }
+    
+    static async handleSettingsConfirmChoice(phone, callId, choice, settingType, ivrCompiler) {
+        const profile = await UserRepository.getProfile(phone);
+        
+        if (choice === '0') {
+            profile.tempSettingsTranscription = "";
+            await UserRepository.saveProfile(phone, profile);
+            return this.serveSettingsMenu(phone, ivrCompiler);
+        }
+        
+        if (choice === '2') {
+            profile.tempSettingsTranscription = "";
+            await UserRepository.saveProfile(phone, profile);
+            const prompt = (settingType === 'instructions') ? SYSTEM_CONSTANTS.PROMPTS.SETTINGS_INSTRUCTIONS_RECORD : SYSTEM_CONSTANTS.PROMPTS.SETTINGS_PROFILE_RECORD;
+            const baseState = (settingType === 'instructions') ? SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO : SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO;
+            return ivrCompiler.requestAudioRecord(prompt, baseState, callId);
+        }
+        
+        if (choice === '1') {
+            const field = (settingType === 'instructions') ? 'customInstructions' : 'personalProfile';
+            if (profile.settingsActionType === 'append' && profile[field]) {
+                profile[field] += "\n" + profile.tempSettingsTranscription;
+            } else {
+                profile[field] = profile.tempSettingsTranscription;
+            }
+            profile.tempSettingsTranscription = "";
+            await UserRepository.saveProfile(phone, profile);
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ACTION_SUCCESS);
+            return this.serveSettingsMenu(phone, ivrCompiler);
+        }
+        
+        // Fallback
+        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
         this.serveSettingsMenu(phone, ivrCompiler);
     }
 
@@ -965,9 +1009,9 @@ class DomainControllers {
         if (chunks.length <= 1) {
             const finalPrompt = (contextType === 'chat') ? SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU : 
                                 (contextType === 'trans_draft') ? SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU : SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU;
-            ivrCompiler.requestDigits(finalPrompt, endStateBase, 1, 1);
+            ivrCompiler.requestDigits(finalPrompt, endStateBase, 1, 1, 'no');
         } else {
-            ivrCompiler.requestDigits(pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
+            ivrCompiler.requestDigits(pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1, 'no');
         }
     }
 
@@ -984,8 +1028,8 @@ class DomainControllers {
         
         if (choice === '1') {
             if (pag.type === 'chat') ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
-            else if (pag.type === 'trans_draft') ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1);
-            else ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1);
+            else if (pag.type === 'trans_draft') ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_DRAFT_MENU, 1, 1, 'no');
+            else ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU, SYSTEM_CONSTANTS.STATE_BASES.TRANS_ACTION_CHOICE, 1, 1, 'no');
             return;
         }
 
@@ -999,9 +1043,9 @@ class DomainControllers {
             if (pag.currentIndex === pag.chunks.length - 1) {
                 const finalPrompt = (pag.type === 'chat') ? SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU : 
                                     (pag.type === 'trans_draft') ? SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU : SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU;
-                ivrCompiler.requestDigits(finalPrompt, pag.endStateBase, 1, 1);
+                ivrCompiler.requestDigits(finalPrompt, pag.endStateBase, 1, 1, 'no');
             } else {
-                ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
+                ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1, 'no');
             }
             return;
         }
@@ -1012,15 +1056,15 @@ class DomainControllers {
         if (pag.currentIndex === pag.chunks.length - 1) {
             const finalPrompt = (pag.type === 'chat') ? SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU : 
                                 (pag.type === 'trans_draft') ? SYSTEM_CONSTANTS.PROMPTS.TRANS_MENU : SYSTEM_CONSTANTS.PROMPTS.TRANS_ACTION_MENU;
-            ivrCompiler.requestDigits(finalPrompt, pag.endStateBase, 1, 1);
+            ivrCompiler.requestDigits(finalPrompt, pag.endStateBase, 1, 1, 'no');
         } else {
-            ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1);
+            ivrCompiler.requestDigits(pag.pPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1, 'no');
         }
     }
 
     // ---- HISTORY ITEM MANAGEMENT ----
     static async serveHistoryItemMenu(ivrCompiler) {
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.HISTORY_ITEM_MENU, SYSTEM_CONSTANTS.STATE_BASES.HISTORY_ITEM_ACTION, 1, 1);
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.HISTORY_ITEM_MENU, SYSTEM_CONSTANTS.STATE_BASES.HISTORY_ITEM_ACTION, 1, 1, 'no');
     }
 
     static async handleHistoryItemAction(phone, choice, ivrCompiler) {
@@ -1193,7 +1237,7 @@ class DomainControllers {
             promptText += `t-לשיחה בנושא ${topic}, הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הראשי הקישו 0.";
-        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 2);
+        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 2, 'no');
     }
 
     static async handleChatHistoryChoice(phone, choice, ivrCompiler) {
@@ -1286,7 +1330,7 @@ class DomainControllers {
             promptText += `t-לתמלול בנושא ${topic}, הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הקודם הקישו 0.";
-        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, 2);
+        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, 2, 'no');
     }
 
     static async handleTransHistoryChoice(phone, choice, ivrCompiler) {
@@ -1309,7 +1353,7 @@ class DomainControllers {
 }
 
 // ============================================================================
-// PART 12: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER)
+// PART 13: STATE MACHINE & REQUEST ROUTER (MAIN HANDLER)
 // ============================================================================
 
 function sendHTTPResponse(res, payloadString) {
@@ -1442,18 +1486,30 @@ export default async function handler(req, res) {
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_MENU_CHOICE) {
             await DomainControllers.handleSettingsMenuChoice(phone, callId, triggerValue, ivrCompiler);
         }
-        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_SPEED_INPUT) {
-            await DomainControllers.handleSettingsSpeedInput(phone, triggerValue, ivrCompiler);
-        }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_DETAIL_INPUT) {
             await DomainControllers.handleSettingsDetailInput(phone, triggerValue, ivrCompiler);
         }
+        
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_CHECK) {
+            await DomainControllers.handleSettingsCheckChoice(phone, callId, triggerValue, 'instructions', ivrCompiler);
+        }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO && triggerValue && triggerValue.includes('.wav')) {
-            await DomainControllers.processSettingsAudio(phone, triggerValue, 'instructions', ivrCompiler);
+            await DomainControllers.processSettingsAudio(phone, callId, triggerValue, 'instructions', ivrCompiler);
+        }
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_CONFIRM) {
+            await DomainControllers.handleSettingsConfirmChoice(phone, callId, triggerValue, 'instructions', ivrCompiler);
+        }
+
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_CHECK) {
+            await DomainControllers.handleSettingsCheckChoice(phone, callId, triggerValue, 'profile', ivrCompiler);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO && triggerValue && triggerValue.includes('.wav')) {
-            await DomainControllers.processSettingsAudio(phone, triggerValue, 'profile', ivrCompiler);
+            await DomainControllers.processSettingsAudio(phone, callId, triggerValue, 'profile', ivrCompiler);
         }
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_CONFIRM) {
+            await DomainControllers.handleSettingsConfirmChoice(phone, callId, triggerValue, 'profile', ivrCompiler);
+        }
+
         // MAIN MENUS
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.MAIN_MENU_CHOICE) {
             await DomainControllers.handleMainMenu(phone, callId, triggerValue, ivrCompiler);
