@@ -84,7 +84,7 @@ const SYSTEM_CONSTANTS = {
         SETTINGS_DELETED: "t-המידע נמחק בהצלחה.",
         
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
-אתה עוזר קולי וירטואלי חכם בשפה העברית.
+אתה עוזר קולי וירטואלי חכם בשפה העברית, מותאם לציבור החרדי.
 האזן לאודיו המצורף או לטקסט המצורף, וענה עליו.
 חשוב מאוד:
 1. ענה ישירות לעניין. אל תסטה לנושאים אחרים (אל תדבר על סרטים, קולנוע או תרבות פופולרית אלא אם נשאלת עליהם מפורשות). תהיה ענייני וממוקד!
@@ -1258,7 +1258,7 @@ class DomainControllers {
             promptText += `t-לשיחה בנושא ${topic}, הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הראשי הקישו 0.";
-        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 2, 'no');
+        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 1, 'no');
     }
 
     static async handleChatHistoryChoice(phone, choice, ivrCompiler) {
@@ -1436,6 +1436,7 @@ export default async function handler(req, res) {
         } else {
             Logger.info("State_Machine", `Trigger:[${triggerBaseKey}] =[${triggerValue}]`);
         }
+        Logger.info("DEBUG_STATE", `Trigger=${triggerBaseKey} Value=${triggerValue}`);
 
 let pendingAudio = false;
 
