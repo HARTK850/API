@@ -1437,19 +1437,22 @@ export default async function handler(req, res) {
             Logger.info("State_Machine", `Trigger:[${triggerBaseKey}] =[${triggerValue}]`);
         }
 
-        let pendingAudio = false;
-        if (isHangup) {
-            if (triggerValue && triggerValue.includes('.wav') && 
-               (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO || 
-                triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO || 
-                triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO ||
-                triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO ||
-                triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO)) {
-                pendingAudio = true;
-            } else {
-                return sendHTTPResponse(res, "noop=hangup_acknowledged");
-            }
-        }
+let pendingAudio = false;
+
+// ✅ טיפול נכון ב-hangup
+if (isHangup && !triggerBaseKey && !triggerValue) {
+    return sendHTTPResponse(res, "noop=hangup_acknowledged");
+}
+
+// 👇 השאר את זה אם אתה צריך טיפול באודיו אחרי hangup
+if (isHangup && triggerValue && triggerValue.includes('.wav') && 
+   (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO || 
+    triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO || 
+    triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_APPEND_AUDIO ||
+    triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_AUDIO ||
+    triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_AUDIO)) {
+    pendingAudio = true;
+}
 
         // ==========================================
         // ROUTING DISPATCHER
