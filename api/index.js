@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 37.0.0 (Yemot Syntax Fixes, No-Digits AI Rule, Redis DB)
+ * @version 38.0.0 (Native Redis, Admin User List, Phone Confirmation, Bug Fixes, 3.1-Flash-Lite)
  * @author Custom AI Assistant
  */
 
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
+        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", // RESTORED EXACT MODEL
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
@@ -72,7 +72,7 @@ const SYSTEM_CONSTANTS = {
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
         // --------------------------------------------
 
-        // --- NEW ADVANCED SETTINGS PROMPTS ---
+        // --- NEW SETTINGS PROMPTS ---
         SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
         SETTINGS_DETAIL: "t-אנא הקישו את רמת פירוט התשובה מ-1 עד 10, כאשר 1 זה תשובות קצרות מאוד ו-10 זה תשובות ארוכות ומפורטות מאוד. בסיום הקישו סולמית.",
         SETTINGS_EXISTING_PROMPT: "t-המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה לתפריט ההגדרות הקישו 0.",
@@ -82,6 +82,12 @@ const SYSTEM_CONSTANTS = {
         SETTINGS_CONFIRM_PREFIX: "t-הטקסט שזוהה הוא: ",
         SETTINGS_CONFIRM_MENU: "t-לאישור ושמירה הקישו 1. להקלטה מחדש הקישו 2. לביטול הקישו 0.",
         SETTINGS_DELETED: "t-המידע נמחק בהצלחה.",
+        
+        // --- NEW ADMIN PROMPTS ---
+        ADMIN_PHONE_CONFIRM_PREFIX: "t-המספר שהוקש הוא",
+        ADMIN_PHONE_CONFIRM_MENU: "t-לאישור הקישו 1, לביטול וחזרה לתפריט הניהול הקישו 2.",
+        ADMIN_LIST_MENU: "t-לניהול מספר זה הקישו 1, למעבר למספר הבא הקישו 2, לחזרה לתפריט הניהול הקישו 0.",
+        ADMIN_LIST_END: "t-סוף רשימת המשתמשים.",
         
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
 אתה עוזר קולי וירטואלי חכם בשפה העברית, מותאם לציבור החרדי.
@@ -115,6 +121,8 @@ const SYSTEM_CONSTANTS = {
         ADMIN_AUTH: 'State_AdminAuth',
         ADMIN_MENU: 'State_AdminMenu',
         ADMIN_USER_INPUT: 'State_AdminUserInput',
+        ADMIN_USER_CONFIRM: 'State_AdminUserConfirm', // NEW
+        ADMIN_LIST_USERS: 'State_AdminListUsers',     // NEW
         ADMIN_USER_ACTION: 'State_AdminUserAction',
         
         // SETTINGS MENU STATES
@@ -171,7 +179,7 @@ class ConfigManager {
         this.yemotToken = process.env.CALL2ALL_TOKEN || '';
         this.adminPassword = process.env.ADMIN_PASSWORD || '15761576';
         
-        // NATIVE REDIS URL (Works for Vercel/Upstash Redis implementations)
+        // NATIVE REDIS URL
         this.redisUrl = process.env.REDIS_URL || '';
 
         this.currentGeminiKeyIndex = 0;
@@ -260,8 +268,7 @@ class YemotTextProcessor {
         if (!text) return "t-טקסט ריק";
         let cleanText = this.applyPhonetics(text);
         cleanText = this.addSpaceBetweenNumbersAndLetters(cleanText);
-        // FIX: Added comma to the regex strip so it never breaks Yemot's `read` command formatting
-        cleanText = cleanText.replace(/[*#=\&^\[\]{},]/g, ' ');
+        cleanText = cleanText.replace(/[*#=\&^\[\]{},]/g, ' '); // STRIP COMMAS TO FIX YEMOT CRASH
         cleanText = cleanText.replace(/[\u{1F600}-\u{1F6FF}]/gu, '');
         cleanText = cleanText.replace(/"/g, ''); 
         const parts = cleanText.split(/[\n\r.]+/);
@@ -322,6 +329,8 @@ class GlobalStatsManager {
         if (!redis) return this.defaultStats();
         try {
             const statsStr = await redis.get('global_system_stats');
+            // FIX: Ensure clean parsing whether redis returned string or object automatically
+            if (typeof statsStr === 'object' && statsStr !== null) return statsStr;
             return statsStr ? JSON.parse(statsStr) : this.defaultStats();
         } catch (error) {
             Logger.warn("GlobalStats", "Redis Fetch failed, using default.");
@@ -344,6 +353,7 @@ class GlobalStatsManager {
 
     static async recordEvent(phone, type) {
         const stats = await this.getStats();
+        if (!stats.uniquePhones) stats.uniquePhones =[];
         if (!stats.uniquePhones.includes(phone) && phone !== 'Unknown_Caller') {
             stats.uniquePhones.push(phone);
         }
@@ -356,11 +366,13 @@ class GlobalStatsManager {
     
     static async checkBlocked(phone) {
         const stats = await this.getStats();
+        if (!stats.blockedPhones) return false;
         return stats.blockedPhones.includes(phone);
     }
     
     static async blockUser(phone) {
         const stats = await this.getStats();
+        if (!stats.blockedPhones) stats.blockedPhones =[];
         if (!stats.blockedPhones.includes(phone)) {
             stats.blockedPhones.push(phone);
             await this.saveStats(stats);
@@ -369,6 +381,7 @@ class GlobalStatsManager {
     
     static async unblockUser(phone) {
         const stats = await this.getStats();
+        if (!stats.blockedPhones) stats.blockedPhones =[];
         stats.blockedPhones = stats.blockedPhones.filter(p => p !== phone);
         await this.saveStats(stats);
     }
@@ -383,9 +396,11 @@ class UserRepository {
         if (!redis) return UserProfileDTO.generateDefault();
 
         const fetchOperation = async () => {
-            const data = await redis.get(`user_profile:${phone}`);
+            let data = await redis.get(`user_profile:${phone}`);
             if (!data) return UserProfileDTO.generateDefault();
-            const validated = UserProfileDTO.validate(JSON.parse(data));
+            // Safeguard parsing
+            if (typeof data === 'string') data = JSON.parse(data);
+            const validated = UserProfileDTO.validate(data);
             UserMemoryCache.set(phone, validated);
             return validated;
         };
@@ -429,13 +444,6 @@ class UserRepository {
 // PART 8: DATA TRANSFER OBJECTS (DTOs)
 // ============================================================================
 
-class ChatMessageDTO {
-    constructor(question, answer) {
-        this.q = question || "";
-        this.a = answer || "";
-    }
-}
-
 class ChatSessionDTO {
     constructor(id = null, topic = "שיחה כללית") {
         this.id = id || `chat_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -444,7 +452,6 @@ class ChatSessionDTO {
         this.date = new Date().toISOString();
         this.messages =[];
     }
-    addMessage(question, answer) { this.messages.push(new ChatMessageDTO(question, answer)); }
 }
 
 class TranscriptionEntryDTO {
@@ -467,6 +474,7 @@ class UserProfileDTO {
             currentTransIndex: null,
             currentManagementType: null, 
             adminTargetPhone: null,
+            adminListIndex: 0, // NEW: For listing users
             
             // PERSONAL SETTINGS
             aiDetailLevel: "5",
@@ -475,7 +483,7 @@ class UserProfileDTO {
             
             // TEMPORARY SETTINGS FOR CONFIRMATION
             tempSettingsTranscription: "",
-            settingsActionType: "overwrite", // 'overwrite' or 'append'
+            settingsActionType: "overwrite", 
             
             pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" }
         };
@@ -488,12 +496,12 @@ class UserProfileDTO {
             data.pagination = { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" };
         }
         
-        // Ensure new settings fields exist
         if (!data.aiDetailLevel) data.aiDetailLevel = "5";
         if (!data.customInstructions) data.customInstructions = "";
         if (!data.personalProfile) data.personalProfile = "";
         if (!data.tempSettingsTranscription) data.tempSettingsTranscription = "";
         if (!data.settingsActionType) data.settingsActionType = "overwrite";
+        if (data.adminListIndex === undefined) data.adminListIndex = 0;
         
         data.chats.forEach(c => { if (c.pinned === undefined) c.pinned = false; });
         data.transcriptions.forEach(t => { if (t.pinned === undefined) t.pinned = false; });
@@ -524,7 +532,6 @@ class ExternalDataService {
             if (!res.ok) return "";
             const xml = await res.text();
             
-            // STRICT REGEX: Extract items only, bypassing the main site title.
             const items =[...xml.matchAll(/<item>[\s\S]*?<title><!\[CDATA\[(.*?)\]\]><\/title>/g)];
             if (items.length < 1) return "";
             
@@ -615,7 +622,6 @@ class GeminiAIService {
 
     static async processChatInteraction(base64Audio, profile, yemotDateContext = "", yemotTimeContext = "") {
         try {
-            // First, quick transcription to detect intent
             const transcriptionPayload = {
                 contents:[{ role: "user", parts:[{ text: "תמלל את האודיו הבא במדויק:" }, { inlineData: { mimeType: "audio/wav", data: base64Audio } }] }],
                 generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
@@ -626,7 +632,6 @@ class GeminiAIService {
                 transcriptText = typeof tr === 'string' ? tr : tr.transcription;
             } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed"); }
             
-            // Build Context using robust internal functions (No Google Tool required)
             const dynamicDateString = DateTimeHelper.getHebrewDateTimeString(); 
             let externalContext = `מידע זמנים קריטי: התאריך והשעה הנוכחיים עכשיו ממש הם: ${dynamicDateString}. תאריך עברי (המעודכן לפי ימות המשיח): ${yemotDateContext}. עליך להתייחס לזמן זה כתאריך הנוכחי לכל דבר ועניין ואין להמציא תאריכים אחרים!\n`;
             
@@ -645,7 +650,6 @@ class GeminiAIService {
             
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
-            // INJECT PERSONALITY & SETTINGS
             systemInstructions += `\n\n[הנחיות אישיות מהמשתמש (ציית להן לחלוטין!)]:\n`;
             systemInstructions += `רמת פירוט התשובה (מ-1 עד 10, 10 הכי מפורט): ${profile.aiDetailLevel}.\n`;
             
@@ -659,21 +663,21 @@ class GeminiAIService {
                 systemInstructions += `\nמידע חיצוני עדכני ששאבתי מהאינטרנט כעת (הסתמך עליו במידת הצורך):\n${externalContext}`;
             }
 
-            // DEEP MEMORY: Inject ALL past chats (up to 30 messages total) to build strong context
             let deepHistoryContext = [];
             const allChats = profile.chats ||[];
             allChats.forEach(chat => {
-                chat.messages.forEach(msg => {
-                    deepHistoryContext.push({
-                        role: "user", 
-                        parts:[{ text: `${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_QUESTION_PREFIX} ${msg.q}\n${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_ANSWER_PREFIX} ${msg.a}` }]
+                // FIX: Guard against corrupted arrays
+                if(chat.messages && Array.isArray(chat.messages)) {
+                    chat.messages.forEach(msg => {
+                        deepHistoryContext.push({
+                            role: "user", 
+                            parts:[{ text: `${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_QUESTION_PREFIX} ${msg.q}\n${SYSTEM_CONSTANTS.PROMPTS.PREVIOUS_ANSWER_PREFIX} ${msg.a}` }]
+                        });
                     });
-                });
+                }
             });
-            // Keep only the last 30 interactions to prevent token overflow
             deepHistoryContext = deepHistoryContext.slice(-30);
 
-            // Payload WITHOUT Google Search Tool
             const payload = {
                 contents:[
                     ...deepHistoryContext,
@@ -725,7 +729,7 @@ class YemotResponseCompiler {
     
     _processPrompt(prompt) {
         if (!prompt) return null;
-        if (prompt.startsWith('f-')) return prompt; 
+        if (prompt.startsWith('f-') || prompt.startsWith('d-')) return prompt; // ADDED d- FOR NATIVE DIGITS
         
         let textToProcess = prompt;
         if (textToProcess.startsWith('t-')) textToProcess = textToProcess.substring(2);
@@ -832,7 +836,6 @@ class DomainControllers {
 
     // ---- SETTINGS DOMAIN ----
     static async serveSettingsMenu(phone, ivrCompiler) {
-        // Using 'no' to blockAsterisk allows '0' and any other keys.
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_MENU, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_MENU_CHOICE, 1, 1, 'no'); 
     }
 
@@ -945,7 +948,6 @@ class DomainControllers {
             return this.serveSettingsMenu(phone, ivrCompiler);
         }
         
-        // Fallback
         ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
         this.serveSettingsMenu(phone, ivrCompiler);
     }
@@ -968,12 +970,13 @@ class DomainControllers {
     static async handleAdminMenu(choice, ivrCompiler) {
         if (choice === '1') {
             const stats = await GlobalStatsManager.getStats();
-            const statsText = `t-נפתחו ${stats.totalSessions} שיחות, ${stats.totalSuccess} תשובות מוצלחות, ${stats.totalErrors} שגיאות. ויש ${stats.uniquePhones.length} משתמשים ייחודיים במערכת.`;
+            const statsText = `t-נפתחו ${stats.totalSessions} שיחות, ${stats.totalSuccess} תשובות מוצלחות, ${stats.totalErrors} שגיאות. ויש ${stats.uniquePhones ? stats.uniquePhones.length : 0} משתמשים ייחודיים במערכת.`;
             ivrCompiler.playChainedTTS(statsText);
             ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_MENU, 1, 1);
         } 
         else if (choice === '2') {
-            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_INPUT, 9, 10);
+            // Unblock asterisk here to allow list mode
+            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_INPUT, 9, 10, 'no');
         }
         else {
             this.serveMainMenu(ivrCompiler);
@@ -981,10 +984,66 @@ class DomainControllers {
     }
 
     static async handleAdminUserInput(phoneToManage, ivrCompiler, originalPhone) {
-        const profile = await UserRepository.getProfile(originalPhone);
-        profile.adminTargetPhone = phoneToManage;
-        await UserRepository.saveProfile(originalPhone, profile);
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_ACTION, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_ACTION, 1, 1);
+        if (phoneToManage === '*') {
+            const profile = await UserRepository.getProfile(originalPhone);
+            profile.adminListIndex = 0;
+            await UserRepository.saveProfile(originalPhone, profile);
+            return this.serveAdminListUsers(originalPhone, ivrCompiler);
+        } else {
+            const profile = await UserRepository.getProfile(originalPhone);
+            profile.adminTargetPhone = phoneToManage;
+            await UserRepository.saveProfile(originalPhone, profile);
+            
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_PREFIX);
+            ivrCompiler.playChainedTTS(`d-${phoneToManage}`); // NATIVE YEMOT DIGITS READOUT
+            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_CONFIRM, 1, 1);
+        }
+    }
+    
+    static async handleAdminUserConfirm(choice, ivrCompiler) {
+        if (choice === '1') {
+            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_ACTION, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_ACTION, 1, 1);
+        } else {
+            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_MENU, 1, 1);
+        }
+    }
+    
+    static async serveAdminListUsers(phone, ivrCompiler) {
+        const profile = await UserRepository.getProfile(phone);
+        const stats = await GlobalStatsManager.getStats();
+        const users = stats.uniquePhones ||[];
+        
+        if (profile.adminListIndex >= users.length) {
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ADMIN_LIST_END);
+            return ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_MENU, 1, 1);
+        }
+        
+        const currentTarget = users[profile.adminListIndex];
+        ivrCompiler.playChainedTTS(`d-${currentTarget}`);
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_LIST_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_LIST_USERS, 1, 1, 'no');
+    }
+    
+    static async handleAdminListUsers(phone, choice, ivrCompiler) {
+        if (choice === '0') {
+            return ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_MENU, 1, 1);
+        }
+        
+        const profile = await UserRepository.getProfile(phone);
+        const stats = await GlobalStatsManager.getStats();
+        const users = stats.uniquePhones || [];
+        const currentTarget = users[profile.adminListIndex];
+        
+        if (choice === '1') {
+            profile.adminTargetPhone = currentTarget;
+            await UserRepository.saveProfile(phone, profile);
+            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_ACTION, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_ACTION, 1, 1);
+        } else if (choice === '2') {
+            profile.adminListIndex++;
+            await UserRepository.saveProfile(phone, profile);
+            return this.serveAdminListUsers(phone, ivrCompiler);
+        } else {
+            this.serveAdminListUsers(phone, ivrCompiler);
+        }
     }
 
     static async handleAdminUserAction(action, ivrCompiler, adminPhone) {
@@ -1111,9 +1170,12 @@ class DomainControllers {
             let playbackScript = "";
             if (isChat) {
                 playbackScript = "היסטוריית שיחה מתחילה\n";
-                realItem.messages.forEach((msg, i) => {
-                    playbackScript += `שאלה ${i + 1}\n${msg.q}\nתשובה ${i + 1}\n${msg.a}\n`;
-                });
+                // FIX: Guard against arrays being corrupted 
+                if (realItem.messages && Array.isArray(realItem.messages)) {
+                    realItem.messages.forEach((msg, i) => {
+                        playbackScript += `שאלה ${i + 1}\n${msg.q}\nתשובה ${i + 1}\n${msg.a}\n`;
+                    });
+                }
             } else {
                 playbackScript = `תוכן התמלול הוא\n${realItem.text}`;
             }
@@ -1213,10 +1275,11 @@ class DomainControllers {
 
             const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, profile, yemotDateContext, yemotTimeContext);
             
-            // ANTI DUPLICATE FIX
+            // ANTI DUPLICATE FIX & FIX JSON PARSE PROTOTYPE LOSS
+            if (!chatSession.messages) chatSession.messages =[];
             const lastMsg = chatSession.messages[chatSession.messages.length - 1];
             if (!lastMsg || lastMsg.q !== transcription) {
-                chatSession.addMessage(transcription, answer);
+                chatSession.messages.push({ q: transcription, a: answer });
             } else {
                 lastMsg.a = answer; 
             }
@@ -1505,6 +1568,12 @@ if (isHangup && triggerValue && triggerValue.includes('.wav') &&
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_INPUT) {
             await DomainControllers.handleAdminUserInput(triggerValue, ivrCompiler, phone);
+        }
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_CONFIRM) {
+            await DomainControllers.handleAdminUserConfirm(triggerValue, ivrCompiler);
+        }
+        else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.ADMIN_LIST_USERS) {
+            await DomainControllers.handleAdminListUsers(phone, triggerValue, ivrCompiler);
         }
         else if (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_ACTION) {
             await DomainControllers.handleAdminUserAction(triggerValue, ivrCompiler, phone);
