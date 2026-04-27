@@ -1,11 +1,11 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 35.0.0 (Vercel KV Redis, Advanced Settings Flow, Validation Menus, Stable Gemini)
+ * @version 36.0.0 (Native Redis URL Integration, Advanced Settings Flow, Deep Memory, No Search Tool)
  * @author Custom AI Assistant
  */
 
-import { kv } from '@vercel/kv';
+import Redis from 'ioredis';
 
 export const maxDuration = 60; 
 
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", // FIX: Changed to stable model!
+        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
@@ -30,7 +30,7 @@ const SYSTEM_CONSTANTS = {
     },
     RETRY_POLICY: {
         MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2,
-        KV_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
+        DB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
     },
     PROMPTS: {
         // --- USER LOCKED PROMPTS (DO NOT CHANGE) ---
@@ -75,7 +75,7 @@ const SYSTEM_CONSTANTS = {
         // --- NEW ADVANCED SETTINGS PROMPTS ---
         SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
         SETTINGS_DETAIL: "t-אנא הקישו את רמת פירוט התשובה מ-1 עד 10, כאשר 1 זה תשובות קצרות מאוד ו-10 זה תשובות ארוכות ומפורטות מאוד. בסיום הקישו סולמית.",
-        SETTINGS_EXISTING_PROMPT: "t-המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה הקישו 0.",
+        SETTINGS_EXISTING_PROMPT: "t-המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה לתפריט ההגדרות הקישו 0.",
         SETTINGS_INSTRUCTIONS_RECORD: "t-אנא הקליטו הנחיות שתרצו שהבינה המלאכותית תפעל לפיהן תמיד. בסיום ההקלטה הקישו סולמית.",
         SETTINGS_PROFILE_RECORD: "t-אנא הקליטו פרטים על עצמכם, מה אתם אוהבים, ותחביבים. בסיום הקישו סולמית.",
         SETTINGS_PROCESSING: "t-מעבד את ההקלטה, אנא המתינו...",
@@ -152,7 +152,7 @@ class GeminiAPIError extends AppError { constructor(msg) { super(`Gemini Error: 
 class Logger {
     static getTimestamp() { return new Date().toISOString(); }
     static info(context, message) { console.log(`[INFO][${this.getTimestamp()}][${context}] ${message}`); }
-    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}] [${context}] ${message}`); }
+    static warn(context, message) { console.warn(`[WARN][${this.getTimestamp()}][${context}] ${message}`); }
     static error(context, message, errorObj = null) {
         console.error(`[ERROR][${this.getTimestamp()}][${context}] ${message}`);
         if (errorObj) console.error(`[TRACE] ${errorObj.stack || errorObj.message || errorObj}`);
@@ -169,6 +169,10 @@ class ConfigManager {
         this.geminiKeys =[];
         this.yemotToken = process.env.CALL2ALL_TOKEN || '';
         this.adminPassword = process.env.ADMIN_PASSWORD || '15761576';
+        
+        // NATIVE REDIS URL (Works for Vercel/Upstash Redis implementations)
+        this.redisUrl = process.env.REDIS_URL || '';
+
         this.currentGeminiKeyIndex = 0;
         if (process.env.GEMINI_KEYS) {
             this.geminiKeys = process.env.GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k.length > 20);
@@ -183,6 +187,9 @@ class ConfigManager {
     }
 }
 const AppConfig = new ConfigManager();
+
+// INIT IOREDIS CLIENT
+const redis = AppConfig.redisUrl ? new Redis(AppConfig.redisUrl) : null;
 
 // ============================================================================
 // PART 4: HEBREW NATIVE DATE & TIME ENGINE
@@ -305,25 +312,27 @@ class RetryHelper {
 }
 
 // ============================================================================
-// PART 7: GLOBAL STATS & VERCEL KV STORAGE (SUPER FAST DATABASE)
+// PART 7: GLOBAL STATS & REDIS STORAGE (FASTEST METHOD)
 // ============================================================================
 
 class GlobalStatsManager {
     static async getStats() {
+        if (!redis) return this.defaultStats();
         try {
-            const stats = await kv.get('global_system_stats');
-            return stats || this.defaultStats();
+            const statsStr = await redis.get('global_system_stats');
+            return statsStr ? JSON.parse(statsStr) : this.defaultStats();
         } catch (error) {
-            Logger.warn("GlobalStats", "KV Fetch failed, using default.");
+            Logger.warn("GlobalStats", "Redis Fetch failed, using default.");
             return this.defaultStats();
         }
     }
 
     static async saveStats(statsObj) {
+        if (!redis) return;
         try {
-            await kv.set('global_system_stats', statsObj);
+            await redis.set('global_system_stats', JSON.stringify(statsObj));
         } catch (error) {
-            Logger.warn("GlobalStats", "Failed to save stats to KV.");
+            Logger.warn("GlobalStats", "Failed to save stats to Redis.");
         }
     }
 
@@ -369,19 +378,20 @@ class UserRepository {
     static async getProfile(phone) {
         if (!phone || phone === 'unknown') return UserProfileDTO.generateDefault();
         if (UserMemoryCache.has(phone)) return UserProfileDTO.validate(UserMemoryCache.get(phone));
+        if (!redis) return UserProfileDTO.generateDefault();
 
         const fetchOperation = async () => {
-            const profile = await kv.get(`user_profile:${phone}`);
-            if (!profile) return UserProfileDTO.generateDefault();
-            const validated = UserProfileDTO.validate(profile);
+            const data = await redis.get(`user_profile:${phone}`);
+            if (!data) return UserProfileDTO.generateDefault();
+            const validated = UserProfileDTO.validate(JSON.parse(data));
             UserMemoryCache.set(phone, validated);
             return validated;
         };
 
         try {
-            return await RetryHelper.withRetry(fetchOperation, "FetchUserKV", 2, 500);
+            return await RetryHelper.withRetry(fetchOperation, "FetchUserDB", 2, 500);
         } catch (error) {
-            Logger.warn("UserRepository", `KV Fetch failed. Using fresh profile.`);
+            Logger.warn("UserRepository", `DB Fetch failed. Using fresh profile.`);
             const newProfile = UserProfileDTO.generateDefault();
             UserMemoryCache.set(phone, newProfile);
             return newProfile;
@@ -392,16 +402,17 @@ class UserRepository {
         if (!phone || phone === 'unknown') return;
         
         UserMemoryCache.set(phone, profileData);
+        if (!redis) return;
         
         const saveOperation = async () => {
-            await kv.set(`user_profile:${phone}`, profileData);
+            await redis.set(`user_profile:${phone}`, JSON.stringify(profileData));
         };
 
         try {
-            await RetryHelper.withRetry(saveOperation, "SaveUserKV", 3, 500);
-            Logger.info("Storage", `Profile saved securely to KV for ${phone}.`);
+            await RetryHelper.withRetry(saveOperation, "SaveUserDB", 3, 500);
+            Logger.info("Storage", `Profile saved securely to Redis for ${phone}.`);
         } catch (error) {
-            Logger.error("Storage", `KV save failed for ${phone}. Relying on RAM Cache.`, error);
+            Logger.error("Storage", `DB save failed for ${phone}. Relying on RAM Cache.`, error);
         }
     }
     
@@ -475,6 +486,7 @@ class UserProfileDTO {
             data.pagination = { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" };
         }
         
+        // Ensure new settings fields exist
         if (!data.aiDetailLevel) data.aiDetailLevel = "5";
         if (!data.customInstructions) data.customInstructions = "";
         if (!data.personalProfile) data.personalProfile = "";
@@ -510,6 +522,7 @@ class ExternalDataService {
             if (!res.ok) return "";
             const xml = await res.text();
             
+            // STRICT REGEX: Extract items only, bypassing the main site title.
             const items =[...xml.matchAll(/<item>[\s\S]*?<title><!\[CDATA\[(.*?)\]\]><\/title>/g)];
             if (items.length < 1) return "";
             
@@ -600,6 +613,7 @@ class GeminiAIService {
 
     static async processChatInteraction(base64Audio, profile, yemotDateContext = "", yemotTimeContext = "") {
         try {
+            // First, quick transcription to detect intent
             const transcriptionPayload = {
                 contents:[{ role: "user", parts:[{ text: "תמלל את האודיו הבא במדויק:" }, { inlineData: { mimeType: "audio/wav", data: base64Audio } }] }],
                 generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
@@ -610,6 +624,7 @@ class GeminiAIService {
                 transcriptText = typeof tr === 'string' ? tr : tr.transcription;
             } catch(e) { Logger.warn("GeminiChat", "Pre-transcription failed"); }
             
+            // Build Context using robust internal functions (No Google Tool required)
             const dynamicDateString = DateTimeHelper.getHebrewDateTimeString(); 
             let externalContext = `מידע זמנים קריטי: התאריך והשעה הנוכחיים עכשיו ממש הם: ${dynamicDateString}. תאריך עברי (המעודכן לפי ימות המשיח): ${yemotDateContext}. עליך להתייחס לזמן זה כתאריך הנוכחי לכל דבר ועניין ואין להמציא תאריכים אחרים!\n`;
             
@@ -628,6 +643,7 @@ class GeminiAIService {
             
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
+            // INJECT PERSONALITY & SETTINGS
             systemInstructions += `\n\n[הנחיות אישיות מהמשתמש (ציית להן לחלוטין!)]:\n`;
             systemInstructions += `רמת פירוט התשובה (מ-1 עד 10, 10 הכי מפורט): ${profile.aiDetailLevel}.\n`;
             
@@ -641,7 +657,8 @@ class GeminiAIService {
                 systemInstructions += `\nמידע חיצוני עדכני ששאבתי מהאינטרנט כעת (הסתמך עליו במידת הצורך):\n${externalContext}`;
             }
 
-            let deepHistoryContext =[];
+            // DEEP MEMORY: Inject ALL past chats (up to 30 messages total) to build strong context
+            let deepHistoryContext = [];
             const allChats = profile.chats ||[];
             allChats.forEach(chat => {
                 chat.messages.forEach(msg => {
@@ -651,8 +668,10 @@ class GeminiAIService {
                     });
                 });
             });
+            // Keep only the last 30 interactions to prevent token overflow
             deepHistoryContext = deepHistoryContext.slice(-30);
 
+            // Payload WITHOUT Google Search Tool
             const payload = {
                 contents:[
                     ...deepHistoryContext,
@@ -780,6 +799,7 @@ class DomainControllers {
     }
 
     static serveMainMenu(ivrCompiler) {
+        // ALLOW 0 in main menu instead of * to prevent user errors, but still support * for settings
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.MAIN_MENU_CHOICE, 1, 1, 'no');
     }
 
@@ -810,7 +830,8 @@ class DomainControllers {
 
     // ---- SETTINGS DOMAIN ----
     static async serveSettingsMenu(phone, ivrCompiler) {
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_MENU, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_MENU_CHOICE, 1, 1, 'no'); // Allowed 0 for return
+        // Using 'no' to blockAsterisk allows '0' and any other keys.
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_MENU, SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_MENU_CHOICE, 1, 1, 'no'); 
     }
 
     static async handleSettingsMenuChoice(phone, callId, choice, ivrCompiler) {
@@ -881,7 +902,7 @@ class DomainControllers {
             profile.tempSettingsTranscription = text;
             await UserRepository.saveProfile(phone, profile);
             
-            const playbackPrompt = `${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_PREFIX} ${text}. ${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_MENU}`;
+            const playbackPrompt = `t-${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_PREFIX.substring(2)} ${text}. ${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_MENU.substring(2)}`;
             const stateBase = (settingType === 'instructions') ? SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_CONFIRM : SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_CONFIRM;
             
             ivrCompiler.requestDigits(playbackPrompt, stateBase, 1, 1, 'no');
@@ -1413,7 +1434,7 @@ export default async function handler(req, res) {
         if (triggerBaseKey === null) {
             Logger.info("State_Machine", "Initial Entry - No trigger keys present.");
         } else {
-            Logger.info("State_Machine", `Trigger:[${triggerBaseKey}] = [${triggerValue}]`);
+            Logger.info("State_Machine", `Trigger:[${triggerBaseKey}] =[${triggerValue}]`);
         }
 
         let pendingAudio = false;
