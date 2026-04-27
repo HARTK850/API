@@ -17,7 +17,7 @@ const SYSTEM_CONSTANTS = {
     MODELS: {
         // CHANGED: The requested 3.1 model does not exist and caused the 404 key rotation loop. 
         // Updated to the latest reliable standard model.
-        PRIMARY_GEMINI_MODEL: "gemini-2.0-flash-exp", 
+        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", 
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
