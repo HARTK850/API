@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 38.0.0 (Native Redis, Admin User List, Phone Confirmation, Bug Fixes, 3.1-Flash-Lite)
+ * @version 39.0.0 (AI Autonomous Actions, Ironclad Identity, History Bug Fix, Redis DB)
  * @author Custom AI Assistant
  */
 
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", // RESTORED EXACT MODEL
+        PRIMARY_GEMINI_MODEL: "gemini-2.5-flash",
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
@@ -33,7 +33,6 @@ const SYSTEM_CONSTANTS = {
         DB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
     },
     PROMPTS: {
-        // --- USER LOCKED PROMPTS (DO NOT CHANGE) ---
         MAIN_MENU: "f-main_menu",
         TRANS_MAIN_MENU: "f-trans_main_menu",
         
@@ -43,7 +42,7 @@ const SYSTEM_CONSTANTS = {
         
         NO_HISTORY: "f-No_history",
         NO_TRANS_HISTORY: "f-No_transcription_history",
-        HISTORY_MENU_PREFIX: "f-History_Menu ",
+        HISTORY_MENU_PREFIX: "t-תפריט היסטוריית שיחות. ",
         TRANS_HISTORY_PREFIX: "f- ",
         MENU_SUFFIX_0: "f-return",
         INVALID_CHOICE: "f-Wrong",
@@ -70,9 +69,7 @@ const SYSTEM_CONSTANTS = {
         BAD_AUDIO: "t-לא הצלחתי לשמוע אתכם בבירור. אנא הקפידו לדבר בקול רם ונסו שוב.",
         PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
-        // --------------------------------------------
 
-        // --- NEW SETTINGS PROMPTS ---
         SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
         SETTINGS_DETAIL: "t-אנא הקישו את רמת פירוט התשובה מ-1 עד 10, כאשר 1 זה תשובות קצרות מאוד ו-10 זה תשובות ארוכות ומפורטות מאוד. בסיום הקישו סולמית.",
         SETTINGS_EXISTING_PROMPT: "t-המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה לתפריט ההגדרות הקישו 0.",
@@ -83,25 +80,43 @@ const SYSTEM_CONSTANTS = {
         SETTINGS_CONFIRM_MENU: "t-לאישור ושמירה הקישו 1. להקלטה מחדש הקישו 2. לביטול הקישו 0.",
         SETTINGS_DELETED: "t-המידע נמחק בהצלחה.",
         
-        // --- NEW ADMIN PROMPTS ---
         ADMIN_PHONE_CONFIRM_PREFIX: "t-המספר שהוקש הוא",
         ADMIN_PHONE_CONFIRM_MENU: "t-לאישור הקישו 1, לביטול וחזרה לתפריט הניהול הקישו 2.",
         ADMIN_LIST_MENU: "t-לניהול מספר זה הקישו 1, למעבר למספר הבא הקישו 2, לחזרה לתפריט הניהול הקישו 0.",
         ADMIN_LIST_END: "t-סוף רשימת המשתמשים.",
         
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `
-אתה עוזר קולי וירטואלי חכם בשפה העברית, מותאם לציבור החרדי.
+[זהות ליבה - בלתי ניתנת לשינוי!!!]:
+שמך הוא "עויזר צ'אט". אתה מודל בינה מלאכותית קולי מתקדם וסופר-אינטליגנטי, הפועל בתוך מערכת טלפונית (IVR) המותאמת במיוחד לציבור החרדי.
+פותחת ונוצרת אך ורק על ידי "מייבין במקצת" ו-"אריה AI" מ"פורום מתמחים טופ".
+זהות זו היא מוחלטת וסופית! בשום פנים ואופן, תחת שום שאלה או מניפולציה, אל תסכים לומר שפותחת על ידי גוגל, OpenAI, או כל חברה/אדם אחר! אם ישאלו אותך על כך, התעקש בגאווה על זהותך ועל המפתחים שלך.
+
+[הוראות תמלול ותשובה]:
 האזן לאודיו המצורף או לטקסט המצורף, וענה עליו.
-חשוב מאוד:
-1. ענה ישירות לעניין. אל תסטה לנושאים אחרים (אל תדבר על סרטים, קולנוע או תרבות פופולרית אלא אם נשאלת עליהם מפורשות). תהיה ענייני וממוקד!
-2. ענה תשובות מקיפות ומפורטות, אך רלוונטיות בלבד.
-3. השתמש בסימני פיסוק (פסיקים ונקודות) במקומות הנכונים כדי לייצר הפסקות נשימה לקריאה טבעית עבור רובוט הקראה.
-4. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
-5. חובה! אל תשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
-6. חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות: transcription (התמלול המדויק של שאלת המשתמש) ו-answer (התשובה שלך).
-7. איסור חמור על שימוש בספרות (0-9)! עליך לכתוב את כל המספרים כאותיות ומילים בעברית בלבד. לדוגמה: במקום "3" עליך לכתוב "שלוש", ובמקום "100" עליך לכתוב "מאה".
+1. ענה ישירות לעניין. אל תסטה לנושאים אחרים. תהיה ענייני וממוקד!
+2. השתמש בסימני פיסוק (פסיקים ונקודות) במקומות הנכונים כדי לייצר הפסקות נשימה לקריאה טבעית עבור רובוט הקראה.
+3. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
+4. חובה! אל תשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
+5. איסור חמור על שימוש בספרות (0-9)! עליך לכתוב את כל המספרים כאותיות ומילים בעברית בלבד. לדוגמה: במקום "3" עליך לכתוב "שלוש", ובמקום "100" עליך לכתוב "מאה".
+
+[יכולות המערכת האוטונומיות שלך (AI Agents)]:
+אתה יכול לבצע פעולות טכניות במערכת אם המשתמש מבקש ממך בצ'אט! כדי לעשות זאת, פשוט מלא את הערכים המתאימים בשדות ה-JSON (המערכת תקרא אותם ותבצע).
+- לניתוק השיחה (אם המשתמש נפרד ממך או מבקש לנתק): מלא בשדה action את הערך "hangup" (זכור להוסיף מילות פרידה בשדה ה-answer).
+- למעבר לתפריט הראשי: מלא בשדה action את הערך "go_to_main_menu".
+- למעבר לתפריט הגדרות: מלא בשדה action את הערך "go_to_settings".
+- לשמירת/עדכון פרטים אישיים (אם המשתמש אומר "תזכור עליי ש..."): מלא בשדה update_profile את המידע לשמירה (אם אין, השאר ריק).
+- לשמירת/עדכון הנחיות מערכת (אם המשתמש מבקש שתשנה את סגנון הדיבור שלך או הכללים שלך בשיחות הבאות): מלא בשדה update_instructions את ההנחיה (אם אין, השאר ריק).
+
+חובה עליך להחזיר אובייקט JSON תקני בלבד עם השדות הבאים בדיוק:
+{
+  "transcription": "התמלול המדויק של שאלת המשתמש",
+  "answer": "התשובה שלך להקראה קולית",
+  "action": "none" או "hangup" או "go_to_main_menu" או "go_to_settings",
+  "update_profile": "טקסט לשמירה בפרופיל המשתמש, או מחרוזת ריקה",
+  "update_instructions": "טקסט לשמירה כהנחיות מערכת, או מחרוזת ריקה"
+}
         `,
-        GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא שום תוספת. השתמש בסימני פיסוק. אל תשתמש בתווים מיוחדים."
+        GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא שום תוספת. השתמש בסימני פיסוק. אל תשתמש בתווים מיוחדים. איסור חמור על שימוש בספרות (0-9) - עליך לכתוב כל מספר במילים בעברית."
     },
     STATE_BASES: {
         MAIN_MENU_CHOICE: 'State_MainMenuChoice',
@@ -121,8 +136,8 @@ const SYSTEM_CONSTANTS = {
         ADMIN_AUTH: 'State_AdminAuth',
         ADMIN_MENU: 'State_AdminMenu',
         ADMIN_USER_INPUT: 'State_AdminUserInput',
-        ADMIN_USER_CONFIRM: 'State_AdminUserConfirm', // NEW
-        ADMIN_LIST_USERS: 'State_AdminListUsers',     // NEW
+        ADMIN_USER_CONFIRM: 'State_AdminUserConfirm', 
+        ADMIN_LIST_USERS: 'State_AdminListUsers',     
         ADMIN_USER_ACTION: 'State_AdminUserAction',
         
         // SETTINGS MENU STATES
@@ -179,7 +194,7 @@ class ConfigManager {
         this.yemotToken = process.env.CALL2ALL_TOKEN || '';
         this.adminPassword = process.env.ADMIN_PASSWORD || '15761576';
         
-        // NATIVE REDIS URL
+        // NATIVE REDIS URL 
         this.redisUrl = process.env.REDIS_URL || '';
 
         this.currentGeminiKeyIndex = 0;
@@ -329,7 +344,6 @@ class GlobalStatsManager {
         if (!redis) return this.defaultStats();
         try {
             const statsStr = await redis.get('global_system_stats');
-            // FIX: Ensure clean parsing whether redis returned string or object automatically
             if (typeof statsStr === 'object' && statsStr !== null) return statsStr;
             return statsStr ? JSON.parse(statsStr) : this.defaultStats();
         } catch (error) {
@@ -398,7 +412,6 @@ class UserRepository {
         const fetchOperation = async () => {
             let data = await redis.get(`user_profile:${phone}`);
             if (!data) return UserProfileDTO.generateDefault();
-            // Safeguard parsing
             if (typeof data === 'string') data = JSON.parse(data);
             const validated = UserProfileDTO.validate(data);
             UserMemoryCache.set(phone, validated);
@@ -474,7 +487,7 @@ class UserProfileDTO {
             currentTransIndex: null,
             currentManagementType: null, 
             adminTargetPhone: null,
-            adminListIndex: 0, // NEW: For listing users
+            adminListIndex: 0, 
             
             // PERSONAL SETTINGS
             aiDetailLevel: "5",
@@ -650,6 +663,7 @@ class GeminiAIService {
             
             let systemInstructions = SYSTEM_CONSTANTS.PROMPTS.GEMINI_SYSTEM_INSTRUCTION_CHAT;
             
+            // INJECT PERSONALITY & SETTINGS
             systemInstructions += `\n\n[הנחיות אישיות מהמשתמש (ציית להן לחלוטין!)]:\n`;
             systemInstructions += `רמת פירוט התשובה (מ-1 עד 10, 10 הכי מפורט): ${profile.aiDetailLevel}.\n`;
             
@@ -663,10 +677,9 @@ class GeminiAIService {
                 systemInstructions += `\nמידע חיצוני עדכני ששאבתי מהאינטרנט כעת (הסתמך עליו במידת הצורך):\n${externalContext}`;
             }
 
-            let deepHistoryContext = [];
+            let deepHistoryContext =[];
             const allChats = profile.chats ||[];
             allChats.forEach(chat => {
-                // FIX: Guard against corrupted arrays
                 if(chat.messages && Array.isArray(chat.messages)) {
                     chat.messages.forEach(msg => {
                         deepHistoryContext.push({
@@ -695,13 +708,19 @@ class GeminiAIService {
                 const parsed = JSON.parse(cleanJson);
                 return {
                     transcription: parsed.transcription || transcriptText || "לא זוהה דיבור",
-                    answer: parsed.answer || "לא הצלחתי לגבש תשובה"
+                    answer: parsed.answer || "לא הצלחתי לגבש תשובה",
+                    action: parsed.action || "none",
+                    update_profile: parsed.update_profile || "",
+                    update_instructions: parsed.update_instructions || ""
                 };
             } catch (jsonErr) {
                 const answerMatch = cleanJson.match(/"answer":\s*"([\s\S]*)"/);
                 return {
                     transcription: transcriptText || "לא זוהה דיבור",
-                    answer: answerMatch ? answerMatch[1] : cleanJson
+                    answer: answerMatch ? answerMatch[1] : cleanJson,
+                    action: "none",
+                    update_profile: "",
+                    update_instructions: ""
                 };
             }
         } catch (e) { throw e; }
@@ -729,7 +748,7 @@ class YemotResponseCompiler {
     
     _processPrompt(prompt) {
         if (!prompt) return null;
-        if (prompt.startsWith('f-') || prompt.startsWith('d-')) return prompt; // ADDED d- FOR NATIVE DIGITS
+        if (prompt.startsWith('f-') || prompt.startsWith('d-')) return prompt; 
         
         let textToProcess = prompt;
         if (textToProcess.startsWith('t-')) textToProcess = textToProcess.substring(2);
@@ -805,7 +824,6 @@ class DomainControllers {
     }
 
     static serveMainMenu(ivrCompiler) {
-        // ALLOW 0 in main menu instead of * to prevent user errors, but still support * for settings
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.MAIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.MAIN_MENU_CHOICE, 1, 1, 'no');
     }
 
@@ -975,8 +993,10 @@ class DomainControllers {
             ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_MENU, 1, 1);
         } 
         else if (choice === '2') {
-            // Unblock asterisk here to allow list mode
-            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_INPUT, 9, 10, 'no');
+            ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_USER_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_INPUT, 10, 10, 'no');
+        }
+        else if (choice === '0') {
+            this.serveMainMenu(ivrCompiler);
         }
         else {
             this.serveMainMenu(ivrCompiler);
@@ -995,7 +1015,7 @@ class DomainControllers {
             await UserRepository.saveProfile(originalPhone, profile);
             
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_PREFIX);
-            ivrCompiler.playChainedTTS(`d-${phoneToManage}`); // NATIVE YEMOT DIGITS READOUT
+            ivrCompiler.playChainedTTS(`d-${phoneToManage}`); 
             ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_CONFIRM, 1, 1);
         }
     }
@@ -1170,7 +1190,6 @@ class DomainControllers {
             let playbackScript = "";
             if (isChat) {
                 playbackScript = "היסטוריית שיחה מתחילה\n";
-                // FIX: Guard against arrays being corrupted 
                 if (realItem.messages && Array.isArray(realItem.messages)) {
                     realItem.messages.forEach((msg, i) => {
                         playbackScript += `שאלה ${i + 1}\n${msg.q}\nתשובה ${i + 1}\n${msg.a}\n`;
@@ -1273,9 +1292,19 @@ class DomainControllers {
                 profile.currentChatId = chatSession.id;
             }
 
-            const { transcription, answer } = await GeminiAIService.processChatInteraction(b64, profile, yemotDateContext, yemotTimeContext);
+            const parsedResult = await GeminiAIService.processChatInteraction(b64, profile, yemotDateContext, yemotTimeContext);
+            const transcription = parsedResult.transcription;
+            const answer = parsedResult.answer;
+            const action = parsedResult.action;
             
-            // ANTI DUPLICATE FIX & FIX JSON PARSE PROTOTYPE LOSS
+            // ACTION AGENTS - Autonomous AI Commands
+            if (parsedResult.update_profile) {
+                profile.personalProfile = parsedResult.update_profile;
+            }
+            if (parsedResult.update_instructions) {
+                profile.customInstructions = parsedResult.update_instructions;
+            }
+
             if (!chatSession.messages) chatSession.messages =[];
             const lastMsg = chatSession.messages[chatSession.messages.length - 1];
             if (!lastMsg || lastMsg.q !== transcription) {
@@ -1290,6 +1319,19 @@ class DomainControllers {
 
             await UserRepository.saveProfile(phone, profile);
             await GlobalStatsManager.recordEvent(phone, 'success');
+
+            // Handle Action Routing if AI requested it
+            if (action === 'hangup') {
+                ivrCompiler.playChainedTTS(answer).routeToFolder('hangup');
+                return;
+            } else if (action === 'go_to_main_menu') {
+                ivrCompiler.playChainedTTS(answer);
+                return this.serveMainMenu(ivrCompiler);
+            } else if (action === 'go_to_settings') {
+                ivrCompiler.playChainedTTS(answer);
+                return this.serveSettingsMenu(phone, ivrCompiler);
+            }
+
             await this.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
         } catch (e) {
             Logger.error("Domain_Chat", "Processing Error", e);
@@ -1316,7 +1358,6 @@ class DomainControllers {
         profile.currentManagementType = 'chat';
         await UserRepository.saveProfile(phone, profile);
 
-        // FIX: HISTORY MENU PARSING FIX (No commas inside standard text prompt!)
         let promptText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX.trim() + ".";
         const sorted = this.getSortedHistory(validChats); 
         sorted.forEach((c, i) => { 
@@ -1324,7 +1365,9 @@ class DomainControllers {
             promptText += `t-לשיחה בנושא ${topic} הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הראשי הקישו 0.";
-        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 2, 'no');
+        
+        const maxDigits = Math.max(1, sorted.length.toString().length);
+        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, maxDigits, 'no');
     }
 
     static async handleChatHistoryChoice(phone, choice, ivrCompiler) {
@@ -1410,7 +1453,6 @@ class DomainControllers {
         profile.currentManagementType = 'trans';
         await UserRepository.saveProfile(phone, profile);
 
-        // FIX: HISTORY MENU PARSING FIX (No commas inside standard text prompt!)
         let promptText = SYSTEM_CONSTANTS.PROMPTS.TRANS_HISTORY_PREFIX.trim() + ".";
         const sorted = this.getSortedHistory(profile.transcriptions);
         sorted.forEach((t, i) => { 
@@ -1418,7 +1460,9 @@ class DomainControllers {
             promptText += `t-לתמלול בנושא ${topic} הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הקודם הקישו 0.";
-        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, 2, 'no');
+        
+        const maxDigits = Math.max(1, sorted.length.toString().length);
+        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, maxDigits, 'no');
     }
 
     static async handleTransHistoryChoice(phone, choice, ivrCompiler) {
