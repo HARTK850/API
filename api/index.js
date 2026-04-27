@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 36.0.0 (Native Redis URL Integration, Advanced Settings Flow, Deep Memory, No Search Tool)
+ * @version 37.0.0 (Yemot Syntax Fixes, No-Digits AI Rule, Redis DB)
  * @author Custom AI Assistant
  */
 
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
-        PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
+        PRIMARY_GEMINI_MODEL: "gemini-2.5-flash",
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
     },
@@ -93,6 +93,7 @@ const SYSTEM_CONSTANTS = {
 4. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
 5. חובה! אל תשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
 6. חובה עליך להחזיר אובייקט JSON תקני בלבד עם שני שדות: transcription (התמלול המדויק של שאלת המשתמש) ו-answer (התשובה שלך).
+7. איסור חמור על שימוש בספרות (0-9)! עליך לכתוב את כל המספרים כאותיות ומילים בעברית בלבד. לדוגמה: במקום "3" עליך לכתוב "שלוש", ובמקום "100" עליך לכתוב "מאה".
         `,
         GEMINI_SYSTEM_INSTRUCTION_TRANSCRIPTION: "תמלל את הנאמר בקובץ האודיו המצורף בעברית במדויק מילה במילה. החזר אך ורק את הטקסט המתומלל ללא שום תוספת. השתמש בסימני פיסוק. אל תשתמש בתווים מיוחדים."
     },
@@ -259,7 +260,8 @@ class YemotTextProcessor {
         if (!text) return "t-טקסט ריק";
         let cleanText = this.applyPhonetics(text);
         cleanText = this.addSpaceBetweenNumbersAndLetters(cleanText);
-        cleanText = cleanText.replace(/[*#=\&^\[\]{}]/g, ' ');
+        // FIX: Added comma to the regex strip so it never breaks Yemot's `read` command formatting
+        cleanText = cleanText.replace(/[*#=\&^\[\]{},]/g, ' ');
         cleanText = cleanText.replace(/[\u{1F600}-\u{1F6FF}]/gu, '');
         cleanText = cleanText.replace(/"/g, ''); 
         const parts = cleanText.split(/[\n\r.]+/);
@@ -337,7 +339,7 @@ class GlobalStatsManager {
     }
 
     static defaultStats() {
-        return { totalSessions: 0, totalSuccess: 0, totalErrors: 0, blockedPhones: [], uniquePhones:[] };
+        return { totalSessions: 0, totalSuccess: 0, totalErrors: 0, blockedPhones:[], uniquePhones:[] };
     }
 
     static async recordEvent(phone, type) {
@@ -1251,14 +1253,15 @@ class DomainControllers {
         profile.currentManagementType = 'chat';
         await UserRepository.saveProfile(phone, profile);
 
-        let promptText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX;
+        // FIX: HISTORY MENU PARSING FIX (No commas inside standard text prompt!)
+        let promptText = SYSTEM_CONSTANTS.PROMPTS.HISTORY_MENU_PREFIX.trim() + ".";
         const sorted = this.getSortedHistory(validChats); 
         sorted.forEach((c, i) => { 
             const topic = c.topic ? YemotTextProcessor.sanitizeForReadPrompt(c.topic) : "שיחה כללית";
-            promptText += `t-לשיחה בנושא ${topic}, הקישו ${i + 1}. `; 
+            promptText += `t-לשיחה בנושא ${topic} הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הראשי הקישו 0.";
-        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 1, 'no');
+        ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.CHAT_HISTORY_CHOICE, 1, 2, 'no');
     }
 
     static async handleChatHistoryChoice(phone, choice, ivrCompiler) {
@@ -1344,11 +1347,12 @@ class DomainControllers {
         profile.currentManagementType = 'trans';
         await UserRepository.saveProfile(phone, profile);
 
-        let promptText = SYSTEM_CONSTANTS.PROMPTS.TRANS_HISTORY_PREFIX;
+        // FIX: HISTORY MENU PARSING FIX (No commas inside standard text prompt!)
+        let promptText = SYSTEM_CONSTANTS.PROMPTS.TRANS_HISTORY_PREFIX.trim() + ".";
         const sorted = this.getSortedHistory(profile.transcriptions);
         sorted.forEach((t, i) => { 
             const topic = t.topic ? YemotTextProcessor.sanitizeForReadPrompt(t.topic) : "תמלול כללי";
-            promptText += `t-לתמלול בנושא ${topic}, הקישו ${i + 1}. `; 
+            promptText += `t-לתמלול בנושא ${topic} הקישו ${i + 1}. `; 
         });
         promptText += "t-לחזרה לתפריט הקודם הקישו 0.";
         ivrCompiler.requestDigits(promptText, SYSTEM_CONSTANTS.STATE_BASES.TRANS_HISTORY_CHOICE, 1, 2, 'no');
@@ -1440,12 +1444,10 @@ export default async function handler(req, res) {
 
 let pendingAudio = false;
 
-// ✅ טיפול נכון ב-hangup
 if (isHangup && !triggerBaseKey && !triggerValue) {
     return sendHTTPResponse(res, "noop=hangup_acknowledged");
 }
 
-// 👇 השאר את זה אם אתה צריך טיפול באודיו אחרי hangup
 if (isHangup && triggerValue && triggerValue.includes('.wav') && 
    (triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO || 
     triggerBaseKey === SYSTEM_CONSTANTS.STATE_BASES.TRANS_AUDIO || 
