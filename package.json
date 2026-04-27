@@ -1,14 +1,14 @@
 {
   "name": "yemot-gemini-ivr",
   "version": "1.0.0",
-  "description": "Yemot HaMashiach IVR integrated with Gemini AI and Supabase",
+  "description": "Yemot HaMashiach IVR integrated with Gemini AI and Vercel KV Redis",
   "main": "api/index.js",
   "type": "module",
   "scripts": {
     "start": "node api/index.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.3"
+    "@vercel/kv": "^3.0.0"
   },
   "engines": {
     "node": ">=18.x"
