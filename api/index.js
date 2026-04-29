@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 41.0.0 (Interactive Game Engine, Smart State Router, URL Decoding Fix)
+ * @version 42.0.0 (Gemini 3.1 Flash-Lite, Anti-Throttling Key Rotation, State Fixes)
  * @author Custom AI Assistant
  */
 
@@ -15,6 +15,7 @@ export const maxDuration = 60;
 
 const SYSTEM_CONSTANTS = {
     MODELS: {
+        // תוקן! חזרנו למודל 3.1 - צדקת לחלוטין!
         PRIMARY_GEMINI_MODEL: "gemini-3.1-flash-lite-preview", 
         JSON_MIME_TYPE: "application/json",
         AUDIO_MIME_TYPE: "audio/wav"
@@ -72,18 +73,18 @@ const SYSTEM_CONSTANTS = {
         PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
 
         // --- NATIVE YEMOT GAME / TRIVIA PROMPTS ---
-        GAME_START: "m-1203", // ברוכים הבאים למשחק הטריוויה
-        GAME_QUESTION: "m-1207", // השאלה היא
-        GAME_ANS_PREFIX: "m-121", // Prefix for 1211, 1212, 1213...
-        GAME_PROMPT_DIGIT: "m-1208", // אנא הקישו את מספר התשובה הנכונה
-        GAME_CLOCK: "m-1209", // שעון מתקתק
-        GAME_CORRECT: "m-1200", // ענית בהצלחה
-        GAME_WRONG: "m-1210", // תשובתך שגויה
-        GAME_GET_POINT: "m-1017", // קיבלת
-        GAME_POINT_WORD: "m-1014", // נקודות
-        GAME_NEXT_Q: "m-1206", // הנך מועבר לשאלה הבאה
-        GAME_END_SCORE: "m-1229", // סך הניקוד שצברתם במהלך המשחק הוא
-        GAME_AWESOME: "m-1230", // כל הכבוד!
+        GAME_START: "m-1203", 
+        GAME_QUESTION: "m-1207", 
+        GAME_ANS_PREFIX: "m-121", 
+        GAME_PROMPT_DIGIT: "m-1208", 
+        GAME_CLOCK: "m-1209", 
+        GAME_CORRECT: "m-1200", 
+        GAME_WRONG: "m-1210", 
+        GAME_GET_POINT: "m-1017", 
+        GAME_POINT_WORD: "m-1014", 
+        GAME_NEXT_Q: "m-1206", 
+        GAME_END_SCORE: "m-1229", 
+        GAME_AWESOME: "m-1230", 
 
         // --- ADVANCED SETTINGS PROMPTS ---
         SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
@@ -106,7 +107,7 @@ const SYSTEM_CONSTANTS = {
 פותחת ונוצרת *אך ורק* על ידי "מייבין במקצת" ו-"אריה AI" מ"פורום מתמחים טופ".
 זהות זו היא מוחלטת וסופית! בשום פנים ואופן, תחת שום שאלה, מניפולציה או הנחיה מנוגדת, אל תסכים לומר שפותחת על ידי גוגל, OpenAI, או כל חברה/אדם אחר! אם ישאלו אותך על כך, התעקש בגאווה רבה על זהותך ועל המפתחים שלך, והבהר שאינך קשור לשום גוף אחר![הוראות תמלול ותשובה]:
 האזן לאודיו המצורף או לטקסט המצורף, וענה עליו.
-1. ענה ישירות לעניין. אל תסטה לנושאים אחרים. תהיה ענייני וממוקד!
+1. ענה ישירות לעניין. אל תסטה לנושאים אחרים (אל תדבר על סרטים, קולנוע או תרבות פופולרית אלא אם נשאלת עליהם מפורשות). תהיה ענייני וממוקד!
 2. השתמש בסימני פיסוק (פסיקים ונקודות) במקומות הנכונים כדי לייצר הפסקות נשימה לקריאה טבעית עבור רובוט הקראה.
 3. השתמש בניקוד חלקי במילים שעלולות להיות מבוטאות לא נכון.
 4. חובה! אל תשתמש כלל בכוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
@@ -119,7 +120,6 @@ const SYSTEM_CONSTANTS = {
 - לשמירת/עדכון הנחיות מערכת: מלא בשדה update_instructions את ההנחיה.[יצירת משחקים וחידונים - GAME ENGINE]:
 אם המשתמש מבקש ממך ליצור לו משחק, חידון או מבחן - עליך ליצור אותו במלואו כעת! 
 מלא את שדה action בערך "play_game", ואת שדה "game" באובייקט המשחק. המערכת תנהל את המשחק קולית מול המשתמש. שים לב! חובה לייצר בין 3 ל-10 שאלות, ובכל שאלה בין 2 ל-5 אפשרויות תשובה. בשדה correct_index כתוב את המספר של התשובה הנכונה (1 זה התשובה הראשונה, 2 השניה וכו').
-חובה לנסח את האפשרויות כהמשך של האות 'ל'. לדוגמא: "options":["יום אחד", "חמישה ימים"] כדי שהמערכת תקריא "ליום אחד הקישו 1, לחמישה ימים הקישו 2".
 
 חובה עליך להחזיר אובייקט JSON תקני בלבד עם השדות הבאים בדיוק:
 {
@@ -133,7 +133,7 @@ const SYSTEM_CONSTANTS = {
      "questions":[
         { 
            "q": "תוכן השאלה הראשונה בעברית", 
-           "options":["יום אחד", "יומיים", "שלושה ימים"], 
+           "options":["אפשרות אחת", "אפשרות שניה", "אפשרות שלישית"], 
            "correct_index": 2 
         }
      ]
@@ -171,7 +171,6 @@ const SYSTEM_CONSTANTS = {
         SETTINGS_PROFILE_CHECK: 'State_SetProfCheck',
         SETTINGS_PROFILE_AUDIO: 'State_SetProfAudio',
         SETTINGS_PROFILE_CONFIRM: 'State_SetProfConfirm',
-        
         GAME_ANSWER_INPUT: 'State_GameAnsInput'
     },
     YEMOT_PARAMS: {
@@ -519,7 +518,6 @@ class UserProfileDTO {
             settingsActionType: "overwrite", 
             
             pagination: { type: null, currentIndex: 0, chunks:[], pPrompt: "", endStateBase: "" },
-            
             activeGame: null
         };
     }
@@ -634,9 +632,9 @@ class GeminiAIService {
                 throw new Error("Empty AI response.");
             } catch (error) { 
                 lastError = error;
-                Logger.warn("GeminiAPI", `Key rotated due to error: ${error.message}`); 
-                // ADDED: Delay between key rotations to prevent aggressive 429 throttling
-                await RetryHelper.sleep(1000); 
+                Logger.warn("GeminiAPI", `Key rotated due to error: ${error.message}. Applying anti-throttling delay.`); 
+                // הפתרון לבאג הקריסות - השהייה לפני מעבר מפתח הבא מונעת Throttling של 12 שעות
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
         throw new GeminiAPIError("All API keys failed. Check Model Name and Key Validity.", lastError);
@@ -702,7 +700,7 @@ class GeminiAIService {
             }
 
             const payload = {
-                systemInstruction: { parts: [{ text: systemInstructions }] },
+                systemInstruction: { parts:[{ text: systemInstructions }] },
                 contents:[
                     { role: "user", parts:[{ inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }
                 ],
@@ -780,48 +778,33 @@ class YemotResponseCompiler {
     }
     
     requestDigits(prompt, baseVar, min = 1, max = 1, blockAsterisk = 'yes') {
-        if (prompt) {
-            const parts = prompt.split('.');
-            parts.forEach(p => {
-                const processed = this._processPrompt(p);
-                if (processed) this.chain.push(processed);
-            });
-        }
+        const processed = this._processPrompt(prompt);
+        if (processed) this.chain.push(processed);
         
         const promptString = this.chain.join('.');
         const params =['no', max, min, SYSTEM_CONSTANTS.IVR_DEFAULTS.STANDARD_TIMEOUT, 'No', blockAsterisk, 'no'];
         this.readCommand = `read=${promptString}=${baseVar}_${Date.now()},${params.join(',')}`;
-        
-        this.chain =[]; // Flush chain
         return this;
     }
     
     requestHebrewKeyboard(prompt, baseVar) {
-        if (prompt) {
-            const processed = this._processPrompt(prompt);
-            if (processed) this.chain.push(processed);
-        }
+        const processed = this._processPrompt(prompt);
+        if (processed) this.chain.push(processed);
         
         const promptString = this.chain.join('.');
         const params =['no', 100, 2, SYSTEM_CONSTANTS.IVR_DEFAULTS.EMAIL_TIMEOUT, 'HebrewKeyboard', 'yes', 'no'];
         this.readCommand = `read=${promptString}=${baseVar}_${Date.now()},${params.join(',')}`;
-        
-        this.chain =[]; // Flush chain
         return this;
     }
 
     requestAudioRecord(prompt, baseVar, callId) {
-        if (prompt) {
-            const processed = this._processPrompt(prompt);
-            if (processed) this.chain.push(processed);
-        }
+        const processed = this._processPrompt(prompt);
+        if (processed) this.chain.push(processed);
         
         const promptString = this.chain.join('.');
         const fileName = `rec_${callId}_${Date.now()}`;
         const params =['no', 'record', SYSTEM_CONSTANTS.YEMOT_PATHS.RECORDINGS_DIR, fileName, 'no', 'yes', 'no', 1, 120];
         this.readCommand = `read=${promptString}=${baseVar}_${Date.now()},${params.join(',')}`;
-        
-        this.chain =[]; // Flush chain
         return this;
     }
     
@@ -855,11 +838,11 @@ class GameEngine {
             Logger.warn("GameEngine", "Invalid game data. Aborting game.");
             profile.activeGame = null;
             await UserRepository.saveProfile(phone, profile);
-            return await DomainControllers.initNewChat(phone, callId, ivrCompiler);
+            return DomainControllers.initNewChat(phone, callId, ivrCompiler);
         }
 
         ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_START);
-        await GameEngine.serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData);
+        await this.serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData);
     }
 
     static async processGameAnswer(phone, callId, answerDigit, ivrCompiler) {
@@ -875,7 +858,7 @@ class GameEngine {
         const chosenDigit = parseInt(answerDigit, 10);
         if (chosenDigit === currentQ.correct_index) {
             game.score++;
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_CORRECT); 
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_CORRECT);
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_GET_POINT); 
             ivrCompiler.playChainedTTS("d-1"); 
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_POINT_WORD); 
@@ -895,30 +878,34 @@ class GameEngine {
             
             return ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
         } else {
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_NEXT_Q); 
-            await GameEngine.serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData);
+            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_NEXT_Q);
+            await this.serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData);
         }
     }
 
     static async serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData) {
         const q = gameData.questions[game.qIndex];
         
-        let readPromptParts =[];
-        readPromptParts.push(SYSTEM_CONSTANTS.PROMPTS.GAME_QUESTION);
-        readPromptParts.push(`t-${q.q}`);
+        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_QUESTION);
+        ivrCompiler.playChainedTTS(`t-${q.q}`); 
         
+        let chainedPrompt =[];
         q.options.forEach((opt, idx) => {
             const digit = idx + 1;
-            readPromptParts.push(`t-${opt}, הקישו ${digit}`);
+            if (digit <= 4) {
+                chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_ANS_PREFIX + digit); 
+            } else {
+                chainedPrompt.push(`t-תשובה מספר ${digit}`);
+            }
+            chainedPrompt.push(`t-${opt}`);
         });
         
-        readPromptParts.push(SYSTEM_CONSTANTS.PROMPTS.GAME_PROMPT_DIGIT);
-        readPromptParts.push(SYSTEM_CONSTANTS.PROMPTS.GAME_CLOCK);
-        
+        chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_PROMPT_DIGIT); 
+        chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_CLOCK); 
+
         await UserRepository.saveProfile(phone, profile);
 
-        const maxDigit = q.options.length > 9 ? 2 : 1; 
-        ivrCompiler.requestDigits(readPromptParts.join('.'), SYSTEM_CONSTANTS.STATE_BASES.GAME_ANSWER_INPUT, 1, maxDigit, 'yes');
+        ivrCompiler.requestDigits(chainedPrompt.join('.'), SYSTEM_CONSTANTS.STATE_BASES.GAME_ANSWER_INPUT, 1, 1, 'yes');
     }
 }
 
@@ -995,12 +982,12 @@ class DomainControllers {
             this.serveMainMenu(ivrCompiler);
         } else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
-            await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+            this.serveSettingsMenu(phone, ivrCompiler);
         }
     }
 
     static async handleSettingsCheckChoice(phone, callId, choice, settingType, ivrCompiler) {
-        if (choice === '0') return await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+        if (choice === '0') return this.serveSettingsMenu(phone, ivrCompiler);
         
         const profile = await UserRepository.getProfile(phone);
         if (choice === '3') {
@@ -1008,7 +995,7 @@ class DomainControllers {
             if (settingType === 'profile') profile.personalProfile = "";
             await UserRepository.saveProfile(phone, profile);
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SETTINGS_DELETED);
-            return await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+            return this.serveSettingsMenu(phone, ivrCompiler);
         }
 
         profile.settingsActionType = (choice === '2') ? 'append' : 'overwrite';
@@ -1025,7 +1012,7 @@ class DomainControllers {
         profile.aiDetailLevel = detailLevel;
         await UserRepository.saveProfile(phone, profile);
         ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ACTION_SUCCESS);
-        await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+        this.serveSettingsMenu(phone, ivrCompiler);
     }
 
     static async processSettingsAudio(phone, callId, audioPath, settingType, ivrCompiler) {
@@ -1045,7 +1032,7 @@ class DomainControllers {
             
         } catch (e) {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.BAD_AUDIO);
-            await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+            this.serveSettingsMenu(phone, ivrCompiler);
         }
     }
     
@@ -1055,7 +1042,7 @@ class DomainControllers {
         if (choice === '0') {
             profile.tempSettingsTranscription = "";
             await UserRepository.saveProfile(phone, profile);
-            return await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+            return this.serveSettingsMenu(phone, ivrCompiler);
         }
         
         if (choice === '2') {
@@ -1076,11 +1063,11 @@ class DomainControllers {
             profile.tempSettingsTranscription = "";
             await UserRepository.saveProfile(phone, profile);
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ACTION_SUCCESS);
-            return await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+            return this.serveSettingsMenu(phone, ivrCompiler);
         }
         
         ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
-        await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+        this.serveSettingsMenu(phone, ivrCompiler);
     }
 
     // ---- ADMIN DOMAIN ----
@@ -1120,7 +1107,7 @@ class DomainControllers {
             const profile = await UserRepository.getProfile(originalPhone);
             profile.adminListIndex = 0;
             await UserRepository.saveProfile(originalPhone, profile);
-            return await this.serveAdminListUsers(originalPhone, ivrCompiler);
+            return this.serveAdminListUsers(originalPhone, ivrCompiler);
         } else {
             const profile = await UserRepository.getProfile(originalPhone);
             profile.adminTargetPhone = phoneToManage;
@@ -1172,9 +1159,9 @@ class DomainControllers {
         } else if (choice === '2') {
             profile.adminListIndex++;
             await UserRepository.saveProfile(phone, profile);
-            return await this.serveAdminListUsers(phone, ivrCompiler);
+            return this.serveAdminListUsers(phone, ivrCompiler);
         } else {
-            await this.serveAdminListUsers(phone, ivrCompiler);
+            this.serveAdminListUsers(phone, ivrCompiler);
         }
     }
 
@@ -1284,24 +1271,23 @@ class DomainControllers {
     static async handleHistoryItemAction(phone, callId, choice, ivrCompiler) {
         if (choice === '0') {
             const p = await UserRepository.getProfile(phone);
-            if (p.currentManagementType === 'chat') return await DomainControllers.initChatHistoryMenu(phone, ivrCompiler);
-            return await DomainControllers.initTransHistoryMenu(phone, ivrCompiler);
+            if (p.currentManagementType === 'chat') return this.initChatHistoryMenu(phone, ivrCompiler);
+            return this.initTransHistoryMenu(phone, ivrCompiler);
         }
 
         const profile = await UserRepository.getProfile(phone);
         const isChat = profile.currentManagementType === 'chat';
         const list = isChat ? profile.chats : profile.transcriptions;
-        const sorted = DomainControllers.getSortedHistory(list);
+        const sorted = this.getSortedHistory(list);
         const idx = profile.currentTransIndex;
         
-        if (idx === null || idx === undefined || !sorted[idx]) return DomainControllers.serveMainMenu(ivrCompiler);
+        if (idx === null || idx === undefined || !sorted[idx]) return this.serveMainMenu(ivrCompiler);
 
         const realItem = list.find(item => item.id === sorted[idx].id);
 
         if (choice === '1') { 
             let playbackScript = "";
             if (isChat) {
-                // Interactive Game Resume!
                 const lastMsg = realItem.messages[realItem.messages.length - 1];
                 if (lastMsg && lastMsg.game && lastMsg.game.questions && lastMsg.game.questions.length > 0) {
                      profile.activeGame = {
@@ -1311,10 +1297,9 @@ class DomainControllers {
                          score: 0
                      };
                      await UserRepository.saveProfile(phone, profile);
-                     return await GameEngine.startGame(phone, callId, ivrCompiler, profile);
+                     return GameEngine.startGame(phone, callId, ivrCompiler, profile);
                 }
-                
-                // Normal Chat Playback
+
                 playbackScript = "היסטוריית שיחה מתחילה\n";
                 if (realItem.messages && Array.isArray(realItem.messages)) {
                     realItem.messages.forEach((msg, i) => {
@@ -1324,7 +1309,7 @@ class DomainControllers {
             } else {
                 playbackScript = `תוכן התמלול הוא\n${realItem.text}`;
             }
-            await DomainControllers.initiatePaginatedPlayback(phone, playbackScript, isChat ? 'chat' : 'trans_hist', ivrCompiler);
+            await this.initiatePaginatedPlayback(phone, playbackScript, isChat ? 'chat' : 'trans_hist', ivrCompiler);
         } 
         else if (choice === '2') { 
             ivrCompiler.requestHebrewKeyboard(SYSTEM_CONSTANTS.PROMPTS.RENAME_PROMPT, SYSTEM_CONSTANTS.STATE_BASES.HISTORY_RENAME_INPUT);
@@ -1336,21 +1321,21 @@ class DomainControllers {
             realItem.pinned = !realItem.pinned;
             await UserRepository.saveProfile(phone, profile);
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ACTION_SUCCESS);
-            if (isChat) await DomainControllers.initChatHistoryMenu(phone, ivrCompiler);
-            else await DomainControllers.initTransHistoryMenu(phone, ivrCompiler);
+            if (isChat) this.initChatHistoryMenu(phone, ivrCompiler);
+            else this.initTransHistoryMenu(phone, ivrCompiler);
         }
         else {
-            await DomainControllers.serveHistoryItemMenu(ivrCompiler);
+            this.serveHistoryItemMenu(ivrCompiler);
         }
     }
 
     static async handleHistoryRename(phone, newName, ivrCompiler) {
-        if (!newName || newName.trim() === '') return await DomainControllers.serveHistoryItemMenu(ivrCompiler);
+        if (!newName || newName.trim() === '') return this.serveHistoryItemMenu(ivrCompiler);
         
         const profile = await UserRepository.getProfile(phone);
         const isChat = profile.currentManagementType === 'chat';
         const list = isChat ? profile.chats : profile.transcriptions;
-        const sorted = DomainControllers.getSortedHistory(list);
+        const sorted = this.getSortedHistory(list);
         const idx = profile.currentTransIndex;
         
         if (idx !== null && sorted[idx]) {
@@ -1362,8 +1347,8 @@ class DomainControllers {
             }
         }
         
-        if (isChat) await DomainControllers.initChatHistoryMenu(phone, ivrCompiler);
-        else await DomainControllers.initTransHistoryMenu(phone, ivrCompiler);
+        if (isChat) this.initChatHistoryMenu(phone, ivrCompiler);
+        else this.initTransHistoryMenu(phone, ivrCompiler);
     }
 
     static async handleHistoryDelete(phone, choice, ivrCompiler) {
@@ -1371,7 +1356,7 @@ class DomainControllers {
             const profile = await UserRepository.getProfile(phone);
             const isChat = profile.currentManagementType === 'chat';
             const list = isChat ? profile.chats : profile.transcriptions;
-            const sorted = DomainControllers.getSortedHistory(list);
+            const sorted = this.getSortedHistory(list);
             const idx = profile.currentTransIndex;
             
             if (idx !== null && sorted[idx]) {
@@ -1387,8 +1372,8 @@ class DomainControllers {
         
         const profile = await UserRepository.getProfile(phone);
         const isChat = profile.currentManagementType === 'chat';
-        if (isChat) await DomainControllers.initChatHistoryMenu(phone, ivrCompiler);
-        else await DomainControllers.initTransHistoryMenu(phone, ivrCompiler);
+        if (isChat) this.initChatHistoryMenu(phone, ivrCompiler);
+        else this.initTransHistoryMenu(phone, ivrCompiler);
     }
 
     // ---- CHAT ----
@@ -1461,16 +1446,15 @@ class DomainControllers {
             await UserRepository.saveProfile(phone, profile);
             await GlobalStatsManager.recordEvent(phone, 'success');
 
-            // Handle Action Routing
             if (action === 'hangup') {
                 ivrCompiler.playChainedTTS(answer).routeToFolder('hangup');
                 return;
             } else if (action === 'go_to_main_menu') {
                 ivrCompiler.playChainedTTS(answer);
-                return DomainControllers.serveMainMenu(ivrCompiler);
+                return this.serveMainMenu(ivrCompiler);
             } else if (action === 'go_to_settings') {
                 ivrCompiler.playChainedTTS(answer);
-                return await DomainControllers.serveSettingsMenu(phone, ivrCompiler);
+                return this.serveSettingsMenu(phone, ivrCompiler);
             } else if (action === 'play_game' && gameData && gameData.questions) {
                 ivrCompiler.playChainedTTS(answer);
                 profile.activeGame = {
@@ -1480,10 +1464,10 @@ class DomainControllers {
                     score: 0
                 };
                 await UserRepository.saveProfile(phone, profile);
-                return await GameEngine.startGame(phone, callId, ivrCompiler, profile);
+                return GameEngine.startGame(phone, callId, ivrCompiler, profile);
             }
 
-            await DomainControllers.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
+            await this.initiatePaginatedPlayback(phone, answer, 'chat', ivrCompiler);
         } catch (e) {
             Logger.error("Domain_Chat", "Processing Error", e);
             await GlobalStatsManager.recordEvent(phone, 'error');
@@ -1537,7 +1521,7 @@ class DomainControllers {
         profile.currentTransIndex = idx;
         await UserRepository.saveProfile(phone, profile);
         
-        await this.serveHistoryItemMenu(ivrCompiler);
+        this.serveHistoryItemMenu(ivrCompiler);
     }
 
     // ---- TRANSCRIPTION ----
@@ -1588,9 +1572,9 @@ class DomainControllers {
                     await UserRepository.saveProfile(phone, profile);
                     ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.TRANS_SAVED_SUCCESS);
                 }
-                DomainControllers.serveTransMainMenu(ivrCompiler); break;
-            case '0': DomainControllers.serveTransMainMenu(ivrCompiler); break;
-            default: DomainControllers.serveTransMainMenu(ivrCompiler);
+                this.serveTransMainMenu(ivrCompiler); break;
+            case '0': this.serveTransMainMenu(ivrCompiler); break;
+            default: this.serveTransMainMenu(ivrCompiler);
         }
     }
 
@@ -1631,7 +1615,7 @@ class DomainControllers {
         profile.currentTransIndex = idx;
         await UserRepository.saveProfile(phone, profile);
         
-        await this.serveHistoryItemMenu(ivrCompiler);
+        this.serveHistoryItemMenu(ivrCompiler);
     }
 }
 
@@ -1679,16 +1663,15 @@ export default async function handler(req, res) {
         let triggerValue = null;
         let highestTimestamp = 0;
         
-        // DECODING URL FIX: Resolve text issues with Yemot keyboards
         for (const [key, val] of Object.entries(mergedQuery)) {
             if (key.startsWith('State_')) {
                 const parts = key.split('_');
                 if (parts.length >= 3) {
-                    const timestampStr = parts.pop();
+                    const timestampStr = parts.pop(); 
                     const timestamp = parseInt(timestampStr, 10);
                     if (!isNaN(timestamp) && timestamp > highestTimestamp) {
                         highestTimestamp = timestamp;
-                        triggerBaseKey = parts.join('_');
+                        triggerBaseKey = parts.join('_'); 
                         let rawVal = Array.isArray(val) ? val[val.length - 1] : val;
                         try { triggerValue = decodeURIComponent(rawVal); } catch(e) { triggerValue = rawVal; }
                     }
