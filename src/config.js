@@ -12,7 +12,7 @@ export const SYSTEM_CONSTANTS = {
         MAX_CHUNK_LENGTH: 850 
     },
     PROMPTS: {
-        MAIN_MENU: "t-לשיחת צ'אט הקישו 1. להיסטוריית שיחות הקישו 2. למידע על המערכת הקישו 0. לתפריט הגדרות הקישו כוכבית.",
+        MAIN_MENU: "f-main_menu",
         INFO_MENU: "t-לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
         NEW_CHAT_RECORD: "f-Recorded",
         NO_HISTORY: "f-No_history",
