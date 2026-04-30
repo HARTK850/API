@@ -33,7 +33,7 @@ const SYSTEM_CONSTANTS = {
         DB_MAX_RETRIES: 3, GEMINI_MAX_RETRIES: 3
     },
     PROMPTS: {
-        MAIN_MENU: "t-לשיחת צ'אט הקישו 1. להיסטוריית שיחות הקישו 2. למידע על המערכת הקישו 0. לתפריט הגדרות הקישו כוכבית.",
+        MAIN_MENU: "f-main_menu",
         INFO_MENU: "t-לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
         
         NEW_CHAT_RECORD: "f-Recorded",
