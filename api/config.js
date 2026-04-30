@@ -6,11 +6,11 @@ export const SYSTEM_CONSTANTS = {
     PROMPTS: {
         MAIN_MENU: "f-main_menu",
         INFO_MENU: "t-לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
-        NO_HISTORY: "t-אין לכם היסטוריית שיחות. הנכם מועברים לשיחה חדשה.",
+        NO_HISTORY: "f-No_history",
         HISTORY_MENU_PREFIX: "t-תפריט היסטוריית שיחות.",
         SHARED_HISTORY_PREFIX: "t-תפריט שיחות משותפות.",
         MENU_SUFFIX_0: "t-לחזרה לתפריט הראשי הקישו 0.",
-        INVALID_CHOICE: "t-הבחירה שגויה, אנא נסו שוב.",
+        INVALID_CHOICE: "f-Wrong",
         CHAT_ACTION_MENU: "t-להמשך השיחה הנוכחית הקישו 7. לחזרה לתפריט הראשי הקישו 8.",
         CHAT_PAGINATION_MENU: "t-לשמיעת המשך התשובה הקישו 9. לחלק הקודם הקישו 8. לחזרה הקישו 0.",
         HISTORY_ITEM_MENU: "t-לשמיעת השיחה הקישו 1. לשינוי שם הקישו 2. למחיקה הקישו 3. לנעיצה הקישו 4. לשיתוף השיחה הקישו 5. לחזרה הקישו 0.",
