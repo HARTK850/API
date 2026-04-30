@@ -1,7 +1,7 @@
 {
-  "name": "yemot-gemini-ivr-platinum",
-  "version": "50.0.0",
-  "description": "Platinum Enterprise Yemot HaMashiach IVR with Gemini AI, Circuit Breaker, Offline Games & ioredis",
+  "name": "yemot-gemini-ivr",
+  "version": "1.0.0",
+  "description": "Yemot HaMashiach IVR integrated with Gemini AI and Redis",
   "main": "api/index.js",
   "type": "module",
   "scripts": {
