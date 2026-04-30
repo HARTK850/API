@@ -47,19 +47,19 @@ const SYSTEM_CONSTANTS = {
     },
     // CRITICAL FIX: ALL PROMPTS ARE NOW STRICTLY 't-' (TTS). No more 'f-' missing file crashes.
     PROMPTS: {
-        MAIN_MENU: "t-ברוכים הבאים למערכת הבינה המלאכותית. לשיחת צ'אט הקישו 1. להיסטוריית שיחות הקישו 2. למידע על המערכת הקישו 0. לתפריט הגדרות הקישו כוכבית.",
+        MAIN_MENU: "f-main_menu",
         INFO_MENU: "t-תפריט מידע. לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
         
-        NEW_CHAT_RECORD: "t-אנא הקליטו את שאלתכם לאחר הצליל. בסיום הקישו סולמית.",
+        NEW_CHAT_RECORD: "f-Recorded",
         
-        NO_HISTORY: "t-אין כרגע היסטוריית שיחות שמורה במערכת.",
+        NO_HISTORY: "f-No_history",
         HISTORY_MENU_PREFIX: "t-תפריט היסטוריית שיחות.",
         SHARED_HISTORY_PREFIX: "t-תפריט שיחות משותפות.",
         MENU_SUFFIX_0: "t-לחזרה לתפריט הקודם הקישו 0.",
         INVALID_CHOICE: "t-הבחירה שגויה. אנא נסו שוב.",
         
-        CHAT_ACTION_MENU: "t-להקלטת שאלה נוספת הקישו 1, או נתקו כעת להמשך במועד אחר.",
-        CHAT_PAGINATION_MENU: "t-לשמיעת המשך התשובה הקישו 9, לחזרה אחורה הקישו 7, להקלטת שאלה נוספת הקישו 1, לחזרה לתפריט הראשי הקישו 0.",
+        CHAT_ACTION_MENU: "f-Chat_menu",
+        CHAT_PAGINATION_MENU: "f-Full_chat_menu",
         
         HISTORY_ITEM_MENU: "t-לשמיעת השיחה הקישו 1. לשינוי שם הקישו 2. למחיקה הקישו 3. לנעיצה הקישו 4. לשיתוף השיחה הקישו 5. לחזרה הקישו 0.",
         SHARE_MENU: "t-לשיתוף השיחה עם מספרי פלאפון מסוימים הקישו 1. לשיתוף השיחה עם קוד שיחה פומבי הקישו 2. לחזרה הקישו 0.",
