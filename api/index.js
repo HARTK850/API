@@ -24,7 +24,7 @@ const SYSTEM_CONSTANTS = {
     IVR_DEFAULTS: { STANDARD_TIMEOUT: "7", RECORD_MIN_SEC: "1", RECORD_MAX_SEC: "120", MAX_CHUNK_LENGTH: 850 },
     RETRY_POLICY: { MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2 },
     PROMPTS: {
-        MAIN_MENU: "t-לשיחת צ'אט הקישו 1. להיסטוריית שיחות הקישו 2. למידע על המערכת הקישו 0. לתפריט הגדרות הקישו כוכבית.",
+        MAIN_MENU: "f-main_menu",
         INFO_MENU: "t-לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
         NEW_CHAT_RECORD: "f-Recorded",
         NO_HISTORY: "t-אין לכם היסטוריית שיחות במערכת.",
