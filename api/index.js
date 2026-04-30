@@ -1,7 +1,7 @@
 /**
  * @file api/index.js
  * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 46.0.0 (Function Calling Memory, Smart Key Manager, Nitoviya, Pure OOP)
+ * @version 47.0.0 (Smart Memory Tools, Perfect Game Engine, Pure TTS Prompts, Share System)
  * @author Custom AI Assistant
  */
 
@@ -24,11 +24,13 @@ const SYSTEM_CONSTANTS = {
     IVR_DEFAULTS: { STANDARD_TIMEOUT: "7", RECORD_MIN_SEC: "1", RECORD_MAX_SEC: "120", MAX_CHUNK_LENGTH: 850 },
     RETRY_POLICY: { MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2 },
     PROMPTS: {
+        // הכל הוחלף מ-f ל-t כדי למנוע את המילה "שגיאה" בימות המשיח!
         MAIN_MENU: "f-main_menu",
         INFO_MENU: "t-לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
         NEW_CHAT_RECORD: "f-Recorded",
-        NO_HISTORY: "t-אין לכם היסטוריית שיחות במערכת.",
+        NO_HISTORY: "f-No_history",
         HISTORY_MENU_PREFIX: "t-תפריט היסטוריית שיחות.",
+        SHARED_HISTORY_PREFIX: "t-תפריט שיחות משותפות.",
         MENU_SUFFIX_0: "t-לחזרה לתפריט הראשי הקישו 0.",
         INVALID_CHOICE: "t-הבחירה שגויה. אנא נסו שוב.",
         
@@ -41,7 +43,7 @@ const SYSTEM_CONSTANTS = {
         SHARE_PHONES_CONFIRM: "t-לאישור ושיתוף השיחה הקישו 1. להקשה מחדש הקישו 2. לביטול וחזרה הקישו 0.",
         SHARE_CODE_IMPORT: "t-אנא הקישו את קוד השיחה שקיבלתם בן 5 ספרות, ובסיום סולמית.",
         
-        DELETE_CONFIRM_MENU: "f-delete_confirm_menu",
+        DELETE_CONFIRM_MENU: "t-למחיקה הקישו 1, לביטול הקישו 0.",
         RENAME_PROMPT: "t-אנא הקלידו את השם החדש באמצעות המקלדת, בסיום הקישו סולמית.",
         ACTION_SUCCESS: "t-הפעולה בוצעה בהצלחה.",
         
@@ -54,10 +56,8 @@ const SYSTEM_CONSTANTS = {
         ADMIN_LIST_END: "t-סוף רשימת המשתמשים.",
         
         SYSTEM_ERROR_FALLBACK: "t-אירעה שגיאה בלתי צפויה, אך ננסה להמשיך. אנא נסו שוב.",
-        AI_API_ERROR: "t-אירעה שגיאה בחיבור למנוע הבינה המלאכותית. אנא נסו שוב מאוחר יותר.",
+        AI_API_ERROR: "t-מערכת הבינה המלאכותית עמוסה כרגע. אנא נסו שוב מאוחר יותר.",
         BAD_AUDIO: "t-לא הצלחתי לשמוע אתכם בבירור. אנא הקפידו לדבר בקול רם ונסו שוב.",
-        PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
-        PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
 
         GAME_START: "t-ברוכים הבאים למשחק שיצרתי עבורכם. נתחיל בשאלה הראשונה.", 
         GAME_QUESTION: "t-השאלה היא.", 
@@ -89,7 +89,7 @@ const SYSTEM_CONSTANTS = {
 2. חובה עליך להשתמש בסימני פיסוק תקינים (פסיק, נקודה) כדי לאפשר נשימה לרובוט.
 3. איסור חמור ומוחלט על שימוש באותיות באנגלית (a-z, A-Z), כוכביות (*), קווים מפרידים (-), סולמיות (#) או אמוג'י.
 4. איסור על שימוש בספרות (0-9) בתוך התשובה שלך! עליך לכתוב מספרים במילים בלבד בעברית (לדוגמה: "מאה", "שלוש").[יכולות המערכת והכלים שלך (Tools & Agents)]:
-יש לך כלי מובנה שנקרא "query_long_term_memory". אתה לא מקבל את ההיסטוריה מראש! אם המשתמש שואל על משהו מהעבר ("על מה דיברנו קודם?", "מה אמרתי לך להזכיר לי?"), עליך לקרוא לכלי הזה עם מילת חיפוש, ואנחנו נחזיר לך את המידע.
+יש לך כלי מובנה שנקרא "query_long_term_memory". אתה מקבל כעת רק את השאלה הנוכחית של המשתמש. אם המשתמש שואל על משהו מהעבר או על מידע כללי משיחות קודמות, עליך לקרוא לכלי הזה עם מילת חיפוש, ואנחנו נחזיר לך את המידע מההיסטוריה כדי שתוכל לענות לו!
 
 פעולות מיוחדות (יש להחזיר בשדה action ב-JSON):
 - לניתוק: "hangup"
@@ -97,15 +97,15 @@ const SYSTEM_CONSTANTS = {
 - ליצירת חידון/משחק: "play_game". במקרה כזה, עליך להחזיר את אובייקט "game" במלואו כעת עם שאלות ותשובות (correct_index הוא מספר התשובה הנכונה: 1, 2 וכו'). תן רק פתיח קצר בשדה answer כי המערכת תנהל את המשחק!
 - לפרסום מודעה בלוח: "post_notice". (אנו נבקש מהמשתמש טלפון, אל תבקש בעצמך). שים את טקסט המודעה בשדה notice_text.
 
-שמיעת לוח המודעות: אם המשתמש שואל "מה חדש בלוח המודעות?", המידע נמצא למטה תחת[לוח מודעות קהילתי]. הקרא לו את המודעות. חשוב: אם יש טלפון במודעה, הוסף את השדה "notice_phone_context" ל-JSON עם המספר, כדי שהמערכת תאפשר לו לחייג למפרסם בלחיצת כוכבית!
+שמיעת לוח המודעות: אם המשתמש שואל "מה חדש בלוח המודעות?", המידע יימצא למטה תחת[לוח מודעות קהילתי]. הקרא לו את המודעות. חשוב: אם יש טלפון במודעה, הוסף את השדה "notice_phone_context" ל-JSON עם המספר, כדי שהמערכת תאפשר לו לחייג למפרסם בלחיצת כוכבית!
 
-עליך להחזיר אך ורק אובייקט JSON בתבנית הבאה:
+החזר אך ורק אובייקט JSON בתבנית הבאה:
 {
   "transcription": "תמלול המשתמש",
   "answer": "התשובה הקולית שלך",
   "action": "none / hangup / go_to_main_menu / play_game / post_notice",
-  "notice_text": "",
-  "notice_phone_context": "",
+  "notice_text": "טקסט המודעה (רק אם התבקשת לפרסם)",
+  "notice_phone_context": "מספר הטלפון מתוך המודעה שאתה מקריא כעת למשתמש",
   "update_profile": "",
   "summary": "כתוב כאן סיכום קצר של השיחה כדי לזכור להבא",
   "game": {
@@ -218,7 +218,7 @@ class DateTimeHelper {
 }
 
 // ============================================================================
-// PART 5: HEBREW PHONETICS, SANITIZATION & PACING ENGINE
+// PART 5: TEXT SANITIZATION & PACING ENGINE (NO ENGLISH LETTERS)
 // ============================================================================
 
 class YemotTextProcessor {
@@ -226,7 +226,7 @@ class YemotTextProcessor {
         if (!rawText || typeof rawText !== 'string') return "שגיאת טקסט";
         let cleanText = rawText.replace(/[.,\-=\&^#!?:;()[\]{}]/g, ' '); 
         cleanText = cleanText.replace(/[\u{1F600}-\u{1F6FF}]/gu, ''); 
-        cleanText = cleanText.replace(/[a-zA-Z]/g, ''); // מסיר כל אות באנגלית כדי למנוע את האות S
+        cleanText = cleanText.replace(/[a-zA-Z]/g, ''); // מסיר כל אות באנגלית! מונע השמעת S
         cleanText = cleanText.replace(/[\n\r]/g, ' ');
         return cleanText.replace(/\s{2,}/g, ' ').trim() || "טקסט ריק";
     }
@@ -235,7 +235,7 @@ class YemotTextProcessor {
         if (!text) return "t-המשך";
         let cleanText = text.replace(/[*#=\&^\[\]{},]/g, ' '); 
         cleanText = cleanText.replace(/[\u{1F600}-\u{1F6FF}]/gu, '');
-        cleanText = cleanText.replace(/[a-zA-Z]/g, ''); // הסרה מוחלטת של אנגלית מההקראה
+        cleanText = cleanText.replace(/[a-zA-Z]/g, ''); // הסרה מוחלטת של אנגלית מההקראה - מונע שגיאת S
         cleanText = cleanText.replace(/"/g, ''); 
         const parts = cleanText.split(/[\n\r.,!?]+/).map(p => p.trim()).filter(p => p.length > 0);
         if (parts.length === 0) return "t-המשך";
@@ -289,7 +289,6 @@ class RetryHelper {
 // ============================================================================
 
 class SmartKeyManager {
-    // מנוע רוטציה שמחלק את העומס על כל המפתחות ומונע שימוש במפתחות חסומים (שגיאה 429)
     static async getValidKeyAndIndex() {
         if (!redis) {
             const idx = Math.floor(Math.random() * AppConfig.geminiKeys.length);
@@ -303,7 +302,6 @@ class SmartKeyManager {
             const key = AppConfig.geminiKeys[targetIdx];
             const shortKey = key.slice(-4);
             
-            // בדיקה האם המפתח חסום
             const isExhausted = await redis.get(`key_exhausted:${shortKey}`);
             if (!isExhausted) {
                 return { key, index: targetIdx };
@@ -316,7 +314,15 @@ class SmartKeyManager {
         if (!redis) return;
         const shortKey = key.slice(-4);
         Logger.error("KeyManager", `Key ending in ${shortKey} hit 429 limit. Banning for 24 hours.`);
-        await redis.setex(`key_exhausted:${shortKey}`, 86400, "exhausted"); // חסימה ל-24 שעות
+        await redis.setex(`key_exhausted:${shortKey}`, 86400, "exhausted"); 
+    }
+
+    static async trackKeyUsage(apiKey) {
+        if(!redis) return;
+        try {
+            const shortKey = apiKey.slice(-4);
+            await redis.incr(`gemini_usage:${shortKey}`);
+        } catch(e){}
     }
 
     static async getKeysStatus() {
@@ -325,11 +331,13 @@ class SmartKeyManager {
             const key = AppConfig.geminiKeys[i];
             const shortKey = key.slice(-4);
             const isExhausted = redis ? await redis.get(`key_exhausted:${shortKey}`) : null;
+            const usage = redis ? await redis.get(`gemini_usage:${shortKey}`) || 0 : 0;
             const ttl = redis && isExhausted ? await redis.ttl(`key_exhausted:${shortKey}`) : 0;
             statuses.push({
                 index: i + 1,
                 shortKey: shortKey,
                 status: isExhausted ? "חסום" : "פעיל",
+                usage: usage,
                 hoursLeft: isExhausted ? Math.floor(ttl / 3600) : 0
             });
         }
@@ -367,6 +375,12 @@ class GlobalStatsManager {
         if (!stats.blockedPhones) stats.blockedPhones =[];
         if (!stats.blockedPhones.includes(phone)) { stats.blockedPhones.push(phone); await this.saveStats(stats); }
     }
+    static async unblockUser(phone) {
+        const stats = await this.getStats();
+        if (!stats.blockedPhones) return;
+        stats.blockedPhones = stats.blockedPhones.filter(p => p !== phone);
+        await this.saveStats(stats);
+    }
 }
 
 class NoticeBoardManager {
@@ -394,7 +408,7 @@ class SharedChatsManager {
     static async shareWithPhones(chat, phones) {
         if (!redis) return null;
         const code = await this.generateCode();
-        await redis.set(`shared_chat:${code}`, JSON.stringify(chat), 'EX', 2592000); // 30 days
+        await redis.set(`shared_chat:${code}`, JSON.stringify(chat), 'EX', 2592000); 
         for(let p of phones) {
             let clPhone = p.trim();
             if(clPhone.length > 5) {
@@ -469,6 +483,11 @@ class UserRepository {
         const saveOperation = async () => { await redis.set(`user_profile:${phone}`, JSON.stringify(profileData)); };
         try { await RetryHelper.withRetry(saveOperation, "SaveUserDB", 3, 500); } catch (e) {}
     }
+    
+    static async deleteProfile(phone) {
+        UserMemoryCache.delete(phone);
+        await this.saveProfile(phone, UserProfileDTO.generateDefault());
+    }
 }
 
 // ============================================================================
@@ -517,6 +536,9 @@ class UserProfileDTO {
         if (!data.personalProfile) data.personalProfile = "";
         if (!data.globalContextSummary) data.globalContextSummary = "";
         if (data.adminListIndex === undefined) data.adminListIndex = 0;
+        if (data.activeGame === undefined) data.activeGame = null;
+        if (data.tempNoticeText === undefined) data.tempNoticeText = "";
+        if (data.tempNoticePhone === undefined) data.tempNoticePhone = "";
         data.chats.forEach(c => { if (c.pinned === undefined) c.pinned = false; });
         return data;
     }
@@ -542,8 +564,8 @@ class YemotAPIService {
 }
 
 class GeminiAIService {
+    
     static async callGemini(payload) {
-        // מנגנון Round Robin עם טיפול בשגיאות 429
         let attempts = 0;
         let lastError = null;
         
@@ -564,15 +586,15 @@ class GeminiAIService {
                 
                 if (!response.ok) {
                     const errBody = await response.json();
-                    if (response.status === 429) {
+                    if (response.status === 429 || response.status === 503) {
                         await SmartKeyManager.markKeyExhausted(keyData.key);
                     }
                     throw new Error(`HTTP ${response.status} - ${JSON.stringify(errBody)}`);
                 }
                 
+                await SmartKeyManager.trackKeyUsage(keyData.key);
                 const data = await response.json();
                 
-                // Function Calling Check
                 if (data.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
                     return { functionCall: data.candidates[0].content.parts[0].functionCall };
                 }
@@ -587,7 +609,7 @@ class GeminiAIService {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
-        throw new GeminiAPIError("כל המפתחות נכשלו. אנא נסה שוב.", lastError);
+        throw new GeminiAPIError("מערכת הבינה המלאכותית עמוסה כרגע עקב מגבלת שימושים. אנא נסו שוב מאוחר יותר.", lastError);
     }
 
     static async generateTopic(text) {
@@ -636,9 +658,9 @@ class GeminiAIService {
             if (profile.customInstructions) systemInstructions += `הנחיות קבועות: ${profile.customInstructions}\n`;
             if (externalContext) systemInstructions += `\n[מידע מערכת חיצוני]:\n${externalContext}`;
 
+            // Send ONLY the last message to save tokens (Fix Goal 1)
             let chatSession = profile.chats.find(c => c.id === profile.currentChatId);
             let historyContext =[];
-            // שולח רק את ההודעה האחרונה כדי לחסוך טוקנים
             if (chatSession && chatSession.messages && chatSession.messages.length > 0) {
                 historyContext = chatSession.messages.slice(-1);
             }
@@ -651,7 +673,7 @@ class GeminiAIService {
                 { role: "user", parts:[{ inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }
             ];
 
-            const tools = [{
+            const tools =[{
                 functionDeclarations:[{
                     name: "query_long_term_memory",
                     description: "Search the user's past chat history and global memory summary to retrieve facts, names, or events discussed previously.",
@@ -667,7 +689,6 @@ class GeminiAIService {
             if (response.functionCall && response.functionCall.name === "query_long_term_memory") {
                 Logger.info("Gemini_FunctionCall", `Querying memory for: ${response.functionCall.args.search_query}`);
                 
-                // Fetching the memory locally
                 const memoryResult = profile.globalContextSummary + "\n" + profile.chats.map(c => c.topic).join(", ");
                 
                 contents.push({ role: "model", parts:[{ functionCall: response.functionCall }] });
@@ -676,7 +697,6 @@ class GeminiAIService {
                     parts:[{ functionResponse: { name: "query_long_term_memory", response: { result: memoryResult } } }]
                 });
                 
-                // Call again with the result
                 response = await this.callGemini({ systemInstruction: { parts:[{ text: systemInstructions }] }, contents, tools, generationConfig });
             }
 
@@ -793,11 +813,10 @@ class YemotResponseCompiler {
 }
 
 // ============================================================================
-// PART 11B: GAME ENGINE
+// PART 11B: GAME ENGINE (Fix Goal 3)
 // ============================================================================
 
 class GameEngine {
-    
     static async startGame(phone, callId, ivrCompiler, profile) {
         const game = profile.activeGame;
         const chat = profile.chats.find(c => c.id === game.chatId);
@@ -857,22 +876,23 @@ class GameEngine {
 
     static async serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData) {
         const q = gameData.questions[game.qIndex];
+        
+        // הפרדת הקראת השאלה מבקשת ההקשה (מטפל בבאג קריסת החידונים!)
         ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_QUESTION);
         ivrCompiler.playChainedTTS(`t-${q.q}`); 
         
-        let chainedPrompt =[];
         q.options.forEach((opt, idx) => {
             const digit = idx + 1;
-            if (digit <= 4) chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_ANS_PREFIX + digit); 
-            else chainedPrompt.push(`t-תשובה מספר ${digit}`);
-            chainedPrompt.push(`t-${opt}`);
+            if (digit <= 4) ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_ANS_PREFIX + digit); 
+            else ivrCompiler.playChainedTTS(`t-תשובה מספר ${digit}`);
+            ivrCompiler.playChainedTTS(`t-${opt}`);
         });
         
-        chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_PROMPT_DIGIT); 
-        chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_CLOCK); 
-
+        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_PROMPT_DIGIT); 
         await UserRepository.saveProfile(phone, profile);
-        ivrCompiler.requestDigits(chainedPrompt.join('.'), SYSTEM_CONSTANTS.STATE_BASES.GAME_ANSWER_INPUT, 1, 1, 'yes');
+
+        // בקשת הקשה חלקה ונפרדת לגמרי
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.GAME_CLOCK, SYSTEM_CONSTANTS.STATE_BASES.GAME_ANSWER_INPUT, 1, 1, 'yes');
     }
 }
 
@@ -883,7 +903,7 @@ class GameEngine {
 class DomainControllers {
 
     static getSortedHistory(items) {
-        return [...items].sort((a, b) => {
+        return[...items].sort((a, b) => {
             if (a.pinned && !b.pinned) return -1;
             if (!a.pinned && b.pinned) return 1;
             return new Date(b.date) - new Date(a.date);
@@ -1081,9 +1101,10 @@ class DomainControllers {
             const keysStatus = await SmartKeyManager.getKeysStatus();
             let statsText = `t-סטטוס מפתחות אי פי איי.. ישנם ${keysStatus.length} מפתחות קיימים במערכת.. `;
             keysStatus.forEach(k => {
-                statsText += `המפתח המסתים ב- ${k.shortKey}.. המצב שלו הוא ${k.status}.. `;
+                statsText += `המפתח המסתים ב- ${k.shortKey}.. מצב: ${k.status}.. סך שימושים: ${k.usage}.. `;
                 if(k.hoursLeft > 0) statsText += `יחזור לפעילות בעוד כ- ${k.hoursLeft} שעות.. `;
             });
+            statsText += "המפתחות מוחלפים כעת אוטומטית בכל קריאה על ידי סבב מחזורי חכם למניעת חסימות.";
             ivrCompiler.playChainedTTS(statsText);
             this.serveAdminMenu(ivrCompiler);
         }
@@ -1113,6 +1134,7 @@ class DomainControllers {
         }
     }
     
+    // מעבר על כל המשתמשים
     static async serveAdminListUsers(phone, ivrCompiler) {
         const profile = await UserRepository.getProfile(phone);
         const stats = await GlobalStatsManager.getStats();
@@ -1125,7 +1147,6 @@ class DomainControllers {
         
         const currentTarget = users[profile.adminListIndex];
         ivrCompiler.playChainedTTS(`d-${currentTarget}`);
-        // "לאפשר כוכבית סולמית" - requestDigits needs 'no' for blockAsterisk
         ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_LIST_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_LIST_USERS, 1, 1, 'no');
     }
     
@@ -1146,7 +1167,7 @@ class DomainControllers {
             await UserRepository.saveProfile(phone, profile);
             return this.serveAdminListUsers(phone, ivrCompiler);
         } else if (choice === '3') {
-            ivrCompiler.playChainedTTS("t-מעביר אותך לחיוג חינמי.");
+            ivrCompiler.playChainedTTS("t-מעביר אותך לחיוג חינמי למאזין.");
             ivrCompiler.routeToNitoviya(currentTarget);
         } else {
             this.serveAdminListUsers(phone, ivrCompiler);
@@ -1295,7 +1316,7 @@ class DomainControllers {
                      qIndex: 0,
                      score: 0
                  };
-                 // אם זו שיחה ששותפה - נשמור אותה כשיחה חדשה בפרופיל של המאזין כדי שיוכל להמשיך לשחק
+                 // אם זו שיחה ששותפה - נשמור אותה כשיחה חדשה בפרופיל של המאזין כדי שיוכל להמשיך לשחק אצלו
                  if (isSharedContext) {
                      const newChat = JSON.parse(JSON.stringify(realItem));
                      newChat.id = `chat_${Date.now()}`;
@@ -1526,6 +1547,7 @@ class DomainControllers {
             const gameData = parsedResult.game; 
             
             if (chatSession.messages && chatSession.messages.length === 0) {
+                // רק אם זו שיחה חדשה, נבקש כותרת, ורק על בסיס הטקסט האמיתי שהמשתמש אמר!
                 GeminiAIService.generateTopic(transcription).then(async topic => {
                     const p = await UserRepository.getProfile(phone);
                     const c = p.chats.find(ch => ch.id === chatSession.id);
