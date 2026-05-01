@@ -1,11 +1,11 @@
 /**
  * @file api/index.js
- * @description Ultimate Enterprise IVR System for Yemot HaMashiach & Google Gemini AI.
- * @version 47.0.0 (Smart Memory Tools, Perfect Game Engine, Pure TTS Prompts, Share System)
+ * @description Ultimate Enterprise IVR System - Edge Runtime, Upstash Redis, Native Prompt Arrays
+ * @version 48.0.0
  * @author Custom AI Assistant
  */
 
-import Redis from 'ioredis';
+export const runtime = 'edge'; // Vercel Edge Runtime Declaration
 
 export const maxDuration = 60;
 
@@ -24,45 +24,47 @@ const SYSTEM_CONSTANTS = {
     IVR_DEFAULTS: { STANDARD_TIMEOUT: "7", RECORD_MIN_SEC: "1", RECORD_MAX_SEC: "120", MAX_CHUNK_LENGTH: 850 },
     RETRY_POLICY: { MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2 },
     PROMPTS: {
-        // הכל הוחלף מ-f ל-t כדי למנוע את המילה "שגיאה" בימות המשיח!
-        MAIN_MENU: "f-main_menu",
-        INFO_MENU: "t-לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
-        NEW_CHAT_RECORD: "f-Recorded",
-        NO_HISTORY: "f-No_history",
-        HISTORY_MENU_PREFIX: "t-תפריט היסטוריית שיחות.",
-        SHARED_HISTORY_PREFIX: "t-תפריט שיחות משותפות.",
-        MENU_SUFFIX_0: "t-לחזרה לתפריט הראשי הקישו 0.",
-        INVALID_CHOICE: "t-הבחירה שגויה. אנא נסו שוב.",
+        // Raw Hebrew Texts (No prefixes needed anymore, the compiler handles them)
+        MAIN_MENU: "לשיחת צ'אט הקישו 1. להיסטוריית שיחות הקישו 2. למידע על המערכת הקישו 0. לתפריט הגדרות הקישו כוכבית.",
+        INFO_MENU: "לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
+        NEW_CHAT_RECORD: "אנא הקליטו את בקשתכם לאחר הצליל, ובסיום הקישו סולמית.",
+        NO_HISTORY: "אין לכם היסטוריית שיחות במערכת.",
+        HISTORY_MENU_PREFIX: "תפריט היסטוריית שיחות.",
+        SHARED_HISTORY_PREFIX: "תפריט שיחות משותפות.",
+        MENU_SUFFIX_0: "לחזרה לתפריט הראשי הקישו 0.",
+        INVALID_CHOICE: "הבחירה שגויה. אנא נסו שוב.",
         
         CHAT_ACTION_MENU: "f-Chat_menu",
         CHAT_PAGINATION_MENU: "f-Full_chat_menu",
         
-        HISTORY_ITEM_MENU: "t-לשמיעת השיחה הקישו 1. לשינוי שם הקישו 2. למחיקה הקישו 3. לנעיצה הקישו 4. לשיתוף השיחה הקישו 5. לחזרה הקישו 0.",
-        SHARE_MENU: "t-לשיתוף השיחה עם מספרי פלאפון מסוימים הקישו 1. לשיתוף השיחה עם קוד שיחה פומבי הקישו 2. לחזרה הקישו 0.",
-        SHARE_PHONES_INPUT: "t-אנא הקישו את מספרי הפלאפון. בין מספר למספר הקישו כוכבית. בסיום כל המספרים הקישו סולמית.",
-        SHARE_PHONES_CONFIRM: "t-לאישור ושיתוף השיחה הקישו 1. להקשה מחדש הקישו 2. לביטול וחזרה הקישו 0.",
-        SHARE_CODE_IMPORT: "t-אנא הקישו את קוד השיחה שקיבלתם בן 5 ספרות, ובסיום סולמית.",
+        HISTORY_ITEM_MENU: "לשמיעת השיחה הקישו 1. לשינוי שם הקישו 2. למחיקה הקישו 3. לנעיצה הקישו 4. לשיתוף השיחה הקישו 5. לחזרה הקישו 0.",
+        SHARE_MENU: "לשיתוף השיחה עם מספרי פלאפון מסוימים הקישו 1. לשיתוף השיחה עם קוד שיחה פומבי הקישו 2. לחזרה הקישו 0.",
+        SHARE_PHONES_INPUT: "אנא הקישו את מספרי הפלאפון. בין מספר למספר הקישו כוכבית. בסיום כל המספרים הקישו סולמית.",
+        SHARE_PHONES_CONFIRM: "לאישור ושיתוף השיחה הקישו 1. להקשה מחדש הקישו 2. לביטול וחזרה הקישו 0.",
+        SHARE_CODE_IMPORT: "אנא הקישו את קוד השיחה שקיבלתם בן 5 ספרות, ובסיום סולמית.",
         
-        DELETE_CONFIRM_MENU: "t-למחיקה הקישו 1, לביטול הקישו 0.",
-        RENAME_PROMPT: "t-אנא הקלידו את השם החדש באמצעות המקלדת, בסיום הקישו סולמית.",
-        ACTION_SUCCESS: "t-הפעולה בוצעה בהצלחה.",
+        DELETE_CONFIRM_MENU: "f-delete_confirm_menu",
+        RENAME_PROMPT: "אנא הקלידו את השם החדש באמצעות המקלדת, בסיום הקישו סולמית.",
+        ACTION_SUCCESS: "הפעולה בוצעה בהצלחה.",
         
-        ADMIN_AUTH: "t-אנא הקישו את סיסמת הניהול ובסיום סולמית.",
-        ADMIN_MENU: "t-תפריט ניהול. לנתוני מערכת הקישו 1. לניהול משתמש ספציפי הקישו 2. לרשימת כל המשתמשים הקישו 3. לסטטוס מפתחות אי פי איי הקישו 4. לחזרה הקישו 0.",
-        ADMIN_USER_PROMPT: "t-אנא הקישו את מספר הטלפון של המשתמש ובסיום סולמית.",
-        ADMIN_USER_ACTION: "t-לניהול המשתמש: לחסימה לצמיתות הקישו 1. לשחרור מחסימה הקישו 2. למחיקת כל נתוני המשתמש הקישו 3. לחזרה הקישו 0.",
-        USER_BLOCKED: "t-מספר הטלפון שלך נחסם משימוש במערכת זו. שלום ותודה.",
-        ADMIN_LIST_MENU: "t-לניהול המספר הקישו 1. למעבר למספר הבא הקישו 2. לחיוג חינם למספר הקישו 3. לחזרה לתפריט הניהול הקישו 0.",
-        ADMIN_LIST_END: "t-סוף רשימת המשתמשים.",
+        ADMIN_AUTH: "אנא הקישו את סיסמת הניהול ובסיום סולמית.",
+        ADMIN_MENU: "תפריט ניהול. לנתוני מערכת הקישו 1. לניהול משתמש ספציפי הקישו 2. לרשימת כל המשתמשים הקישו 3. לסטטוס מפתחות אי פי איי הקישו 4. לחזרה הקישו 0.",
+        ADMIN_USER_PROMPT: "אנא הקישו את מספר הטלפון של המשתמש ובסיום סולמית.",
+        ADMIN_USER_ACTION: "לניהול המשתמש: לחסימה לצמיתות הקישו 1. לשחרור מחסימה הקישו 2. למחיקת כל נתוני המשתמש הקישו 3. לחזרה הקישו 0.",
+        USER_BLOCKED: "מספר הטלפון שלך נחסם משימוש במערכת זו. שלום ותודה.",
+        ADMIN_LIST_MENU: "לניהול המספר הקישו 1. למעבר למספר הבא הקישו 2. לחיוג חינם למספר הקישו 3. לחזרה לתפריט הניהול הקישו 0.",
+        ADMIN_LIST_END: "סוף רשימת המשתמשים.",
         
-        SYSTEM_ERROR_FALLBACK: "t-אירעה שגיאה בלתי צפויה, אך ננסה להמשיך. אנא נסו שוב.",
-        AI_API_ERROR: "t-מערכת הבינה המלאכותית עמוסה כרגע. אנא נסו שוב מאוחר יותר.",
-        BAD_AUDIO: "t-לא הצלחתי לשמוע אתכם בבירור. אנא הקפידו לדבר בקול רם ונסו שוב.",
+        SYSTEM_ERROR_FALLBACK: "אירעה שגיאה בלתי צפויה, אך ננסה להמשיך. אנא נסו שוב.",
+        AI_API_ERROR: "מערכת הבינה המלאכותית עמוסה כרגע. אנא נסו שוב מאוחר יותר.",
+        BAD_AUDIO: "לא הצלחתי לשמוע אתכם בבירור. אנא הקפידו לדבר בקול רם ונסו שוב.",
+        PREVIOUS_QUESTION_PREFIX: "שאלה קודמת:",
+        PREVIOUS_ANSWER_PREFIX: "תשובה קודמת:",
 
-        GAME_START: "t-ברוכים הבאים למשחק שיצרתי עבורכם. נתחיל בשאלה הראשונה.", 
-        GAME_QUESTION: "t-השאלה היא.", 
-        GAME_ANS_PREFIX: "t-אפשרות.", 
-        GAME_PROMPT_DIGIT: "t-אנא הקישו את מספר התשובה הנכונה כעת.", 
+        GAME_START: "ברוכים הבאים למשחק שיצרתי עבורכם. נתחיל בשאלה הראשונה.", 
+        GAME_QUESTION: "השאלה היא.", 
+        GAME_ANS_PREFIX: "m-121", 
+        GAME_PROMPT_DIGIT: "אנא הקישו את מספר התשובה הנכונה כעת.", 
         GAME_CLOCK: "m-1209", 
         GAME_CORRECT: "m-1200", 
         GAME_WRONG: "m-1210", 
@@ -72,15 +74,15 @@ const SYSTEM_CONSTANTS = {
         GAME_END_SCORE: "m-1229", 
         GAME_AWESOME: "m-1230", 
 
-        SETTINGS_MENU: "t-תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
-        SETTINGS_DETAIL: "t-אנא הקישו את רמת פירוט התשובה מ-1 עד 10, כאשר 1 זה תשובות קצרות מאוד ו-10 זה תשובות ארוכות ומפורטות מאוד. בסיום הקישו סולמית.",
-        SETTINGS_EXISTING_PROMPT: "t-המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה לתפריט ההגדרות הקישו 0.",
-        SETTINGS_INSTRUCTIONS_RECORD: "t-אנא הקליטו הנחיות שתרצו שהבינה המלאכותית תפעל לפיהן תמיד. בסיום ההקלטה הקישו סולמית.",
-        SETTINGS_PROFILE_RECORD: "t-אנא הקליטו פרטים על עצמכם, מה אתם אוהבים, ותחביבים. בסיום הקישו סולמית.",
-        SETTINGS_PROCESSING: "t-מעבד את ההקלטה, אנא המתינו...",
-        SETTINGS_CONFIRM_PREFIX: "t-הטקסט שזוהה הוא: ",
-        SETTINGS_CONFIRM_MENU: "t-לאישור ושמירה הקישו 1. להקלטה מחדש הקישו 2. לביטול הקישו 0.",
-        SETTINGS_DELETED: "t-המידע נמחק בהצלחה.",
+        SETTINGS_MENU: "תפריט הגדרות אישיות. להגדרת רמת פירוט התשובה הקישו 1. להקלטת הנחיות מערכת קבועות הקישו 2. להקלטת פרופיל אישי והעדפות הקישו 3. לחזרה לתפריט הראשי הקישו 0.",
+        SETTINGS_DETAIL: "אנא הקישו את רמת פירוט התשובה מ-1 עד 10, כאשר 1 זה תשובות קצרות מאוד ו-10 זה תשובות ארוכות ומפורטות מאוד. בסיום הקישו סולמית.",
+        SETTINGS_EXISTING_PROMPT: "המערכת זיהתה שקיים מידע שמור. להחלפת המידע הקישו 1. להוספת מידע על הקיים הקישו 2. למחיקת המידע הקישו 3. לחזרה לתפריט ההגדרות הקישו 0.",
+        SETTINGS_INSTRUCTIONS_RECORD: "אנא הקליטו הנחיות שתרצו שהבינה המלאכותית תפעל לפיהן תמיד. בסיום ההקלטה הקישו סולמית.",
+        SETTINGS_PROFILE_RECORD: "אנא הקליטו פרטים על עצמכם, מה אתם אוהבים, ותחביבים. בסיום הקישו סולמית.",
+        SETTINGS_PROCESSING: "מעבד את ההקלטה, אנא המתינו...",
+        SETTINGS_CONFIRM_PREFIX: "הטקסט שזוהה הוא: ",
+        SETTINGS_CONFIRM_MENU: "לאישור ושמירה הקישו 1. להקלטה מחדש הקישו 2. לביטול הקישו 0.",
+        SETTINGS_DELETED: "המידע נמחק בהצלחה.",
         
         GEMINI_SYSTEM_INSTRUCTION_CHAT: `[זהות ליבה]:
 שמך הוא "עויזר צ'אט". פותחת על ידי "מייבין במקצת" ו-"אריה AI" מ"פורום מתמחים טופ".
@@ -94,10 +96,10 @@ const SYSTEM_CONSTANTS = {
 פעולות מיוחדות (יש להחזיר בשדה action ב-JSON):
 - לניתוק: "hangup"
 - למעבר לתפריט הראשי: "go_to_main_menu"
-- ליצירת חידון/משחק: "play_game". במקרה כזה, עליך להחזיר את אובייקט "game" במלואו כעת עם שאלות ותשובות (correct_index הוא מספר התשובה הנכונה: 1, 2 וכו'). תן רק פתיח קצר בשדה answer כי המערכת תנהל את המשחק!
+- ליצירת חידון/משחק: "play_game". עליך להחזיר את אובייקט "game" במלואו כעת עם שאלות ותשובות (correct_index הוא מספר התשובה הנכונה: 1, 2 וכו'). תן רק פתיח קצר בשדה answer.
 - לפרסום מודעה בלוח: "post_notice". (אנו נבקש מהמשתמש טלפון, אל תבקש בעצמך). שים את טקסט המודעה בשדה notice_text.
 
-שמיעת לוח המודעות: אם המשתמש שואל "מה חדש בלוח המודעות?", המידע יימצא למטה תחת[לוח מודעות קהילתי]. הקרא לו את המודעות. חשוב: אם יש טלפון במודעה, הוסף את השדה "notice_phone_context" ל-JSON עם המספר, כדי שהמערכת תאפשר לו לחייג למפרסם בלחיצת כוכבית!
+שמיעת לוח המודעות: אם המשתמש שואל "מה חדש בלוח המודעות?", המידע יימצא למטה תחת[לוח מודעות קהילתי]. הקרא לו את המודעות. חשוב: אם יש טלפון במודעה, הוסף את השדה "notice_phone_context" ל-JSON עם המספר, כדי שהמערכת תאפשר לו לחייג למפרסם בלחיצת כוכבית בחינם!
 
 החזר אך ורק אובייקט JSON בתבנית הבאה:
 {
@@ -113,8 +115,7 @@ const SYSTEM_CONSTANTS = {
         { "q": "תוכן השאלה?", "options":["אפשרות ראשונה", "אפשרות שניה"], "correct_index": 2 }
      ]
   }
-}
-        `
+}`
     },
     STATE_BASES: {
         MAIN_MENU_CHOICE: 'State_MainMenuChoice',
@@ -190,7 +191,8 @@ class ConfigManager {
         this.yemotToken = process.env.CALL2ALL_TOKEN || '';
         this.adminPassword = process.env.ADMIN_PASSWORD || '15761576';
         this.adminBypassPhone = '0527673579';
-        this.redisUrl = process.env.REDIS_URL || '';
+        this.upstashUrl = process.env.UPSTASH_REDIS_REST_URL || '';
+        this.upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 
         if (process.env.GEMINI_KEYS) {
             this.geminiKeys = process.env.GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k.length > 20);
@@ -199,7 +201,45 @@ class ConfigManager {
     }
 }
 const AppConfig = new ConfigManager();
-const redis = AppConfig.redisUrl ? new Redis(AppConfig.redisUrl) : null;
+
+// ============================================================================
+// PART 3.5: UPSTASH REDIS REST CLIENT (EDGE COMPATIBLE)
+// ============================================================================
+
+class UpstashRedis {
+    constructor(url, token) {
+        this.url = url.replace(/\/$/, ''); 
+        this.token = token;
+    }
+
+    async _request(command, ...args) {
+        if (!this.url || !this.token) return null;
+        try {
+            const res = await fetch(this.url, {
+                method: 'POST',
+                headers: { 
+                    Authorization: `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify([command, ...args])
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.result;
+        } catch (e) {
+            Logger.error("UpstashRedis", `Command ${command} failed`, e);
+            return null;
+        }
+    }
+    
+    async get(key) { return await this._request('GET', key); }
+    async set(key, value) { return await this._request('SET', key, value); }
+    async setex(key, seconds, value) { return await this._request('SETEX', key, seconds, value); }
+    async incr(key) { return await this._request('INCR', key); }
+    async ttl(key) { return await this._request('TTL', key); }
+}
+
+const redis = (AppConfig.upstashUrl && AppConfig.upstashToken) ? new UpstashRedis(AppConfig.upstashUrl, AppConfig.upstashToken) : null;
 
 // ============================================================================
 // PART 4: HEBREW NATIVE DATE & TIME ENGINE
@@ -307,7 +347,7 @@ class SmartKeyManager {
                 return { key, index: targetIdx };
             }
         }
-        throw new GeminiAPIError("כל המפתחות חסומים כרגע עקב עומס (429). אנא נסה שוב מאוחר יותר.");
+        throw new GeminiAPIError("כל המפתחות חסומים כרגע עקב עומס. המערכת במנוחה.");
     }
 
     static async markKeyExhausted(key) {
@@ -483,11 +523,6 @@ class UserRepository {
         const saveOperation = async () => { await redis.set(`user_profile:${phone}`, JSON.stringify(profileData)); };
         try { await RetryHelper.withRetry(saveOperation, "SaveUserDB", 3, 500); } catch (e) {}
     }
-    
-    static async deleteProfile(phone) {
-        UserMemoryCache.delete(phone);
-        await this.saveProfile(phone, UserProfileDTO.generateDefault());
-    }
 }
 
 // ============================================================================
@@ -658,9 +693,9 @@ class GeminiAIService {
             if (profile.customInstructions) systemInstructions += `הנחיות קבועות: ${profile.customInstructions}\n`;
             if (externalContext) systemInstructions += `\n[מידע מערכת חיצוני]:\n${externalContext}`;
 
-            // Send ONLY the last message to save tokens (Fix Goal 1)
             let chatSession = profile.chats.find(c => c.id === profile.currentChatId);
             let historyContext =[];
+            // שולח רק את ההודעה האחרונה כדי לחסוך טוקנים
             if (chatSession && chatSession.messages && chatSession.messages.length > 0) {
                 historyContext = chatSession.messages.slice(-1);
             }
@@ -673,11 +708,11 @@ class GeminiAIService {
                 { role: "user", parts:[{ inlineData: { mimeType: SYSTEM_CONSTANTS.MODELS.AUDIO_MIME_TYPE, data: base64Audio } }] }
             ];
 
-            const tools =[{
+            const tools = [{
                 functionDeclarations:[{
                     name: "query_long_term_memory",
                     description: "Search the user's past chat history and global memory summary to retrieve facts, names, or events discussed previously.",
-                    parameters: { type: "OBJECT", properties: { search_query: { type: "STRING", description: "The subject to search for" } }, required: ["search_query"] }
+                    parameters: { type: "OBJECT", properties: { search_query: { type: "STRING", description: "The subject to search for" } }, required:["search_query"] }
                 }]
             }];
 
@@ -689,6 +724,7 @@ class GeminiAIService {
             if (response.functionCall && response.functionCall.name === "query_long_term_memory") {
                 Logger.info("Gemini_FunctionCall", `Querying memory for: ${response.functionCall.args.search_query}`);
                 
+                // Fetching the memory locally
                 const memoryResult = profile.globalContextSummary + "\n" + profile.chats.map(c => c.topic).join(", ");
                 
                 contents.push({ role: "model", parts:[{ functionCall: response.functionCall }] });
@@ -697,6 +733,7 @@ class GeminiAIService {
                     parts:[{ functionResponse: { name: "query_long_term_memory", response: { result: memoryResult } } }]
                 });
                 
+                // Call again with the result
                 response = await this.callGemini({ systemInstruction: { parts:[{ text: systemInstructions }] }, contents, tools, generationConfig });
             }
 
@@ -729,7 +766,7 @@ class GeminiAIService {
 }
 
 // ============================================================================
-// PART 11: YEMOT IVR COMPILER
+// PART 11: YEMOT IVR COMPILER (NATIVE ARRAY SUPPORT)
 // ============================================================================
 
 class YemotResponseCompiler {
@@ -751,14 +788,21 @@ class YemotResponseCompiler {
         return YemotTextProcessor.formatForChainedTTS(textToProcess);
     }
 
+    _buildPromptString(promptOrArray) {
+        if (Array.isArray(promptOrArray)) {
+            return promptOrArray.map(p => this._processPrompt(p)).filter(Boolean).join('.');
+        }
+        return this._processPrompt(promptOrArray);
+    }
+
     playChainedTTS(prompt) {
-        const processed = this._processPrompt(prompt);
+        const processed = this._buildPromptString(prompt);
         if (processed) this.chain.push(processed);
         return this;
     }
     
     requestDigits(prompt, baseVar, min = 1, max = 1, blockAsterisk = 'yes') {
-        const processed = this._processPrompt(prompt);
+        const processed = this._buildPromptString(prompt);
         if (processed) this.chain.push(processed);
         
         const promptString = this.chain.join('.');
@@ -768,7 +812,7 @@ class YemotResponseCompiler {
     }
     
     requestHebrewKeyboard(prompt, baseVar) {
-        const processed = this._processPrompt(prompt);
+        const processed = this._buildPromptString(prompt);
         if (processed) this.chain.push(processed);
         
         const promptString = this.chain.join('.');
@@ -778,7 +822,7 @@ class YemotResponseCompiler {
     }
 
     requestAudioRecord(prompt, baseVar, callId) {
-        const processed = this._processPrompt(prompt);
+        const processed = this._buildPromptString(prompt);
         if (processed) this.chain.push(processed);
         
         const promptString = this.chain.join('.');
@@ -849,10 +893,7 @@ class GameEngine {
         const chosenDigit = parseInt(answerDigit, 10);
         if (chosenDigit === currentQ.correct_index) {
             game.score++;
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_CORRECT);
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_GET_POINT); 
-            ivrCompiler.playChainedTTS("d-1"); 
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_POINT_WORD); 
+            ivrCompiler.playChainedTTS([SYSTEM_CONSTANTS.PROMPTS.GAME_CORRECT, SYSTEM_CONSTANTS.PROMPTS.GAME_GET_POINT, "d-1", SYSTEM_CONSTANTS.PROMPTS.GAME_POINT_WORD]);
         } else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_WRONG); 
         }
@@ -860,13 +901,9 @@ class GameEngine {
         game.qIndex++;
         
         if (game.qIndex >= gameData.questions.length) {
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_END_SCORE); 
-            ivrCompiler.playChainedTTS(`d-${game.score}`);
-            ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_AWESOME); 
-            
+            ivrCompiler.playChainedTTS([SYSTEM_CONSTANTS.PROMPTS.GAME_END_SCORE, `d-${game.score}`, SYSTEM_CONSTANTS.PROMPTS.GAME_AWESOME]);
             profile.activeGame = null;
             await UserRepository.saveProfile(phone, profile);
-            
             return ivrCompiler.requestAudioRecord(SYSTEM_CONSTANTS.PROMPTS.NEW_CHAT_RECORD, SYSTEM_CONSTANTS.STATE_BASES.CHAT_USER_AUDIO, callId);
         } else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_NEXT_Q);
@@ -877,22 +914,20 @@ class GameEngine {
     static async serveNextQuestion(phone, callId, ivrCompiler, profile, game, gameData) {
         const q = gameData.questions[game.qIndex];
         
-        // הפרדת הקראת השאלה מבקשת ההקשה (מטפל בבאג קריסת החידונים!)
-        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_QUESTION);
-        ivrCompiler.playChainedTTS(`t-${q.q}`); 
-        
+        let chainedPrompt =[SYSTEM_CONSTANTS.PROMPTS.GAME_QUESTION, `t-${q.q}`];
         q.options.forEach((opt, idx) => {
             const digit = idx + 1;
-            if (digit <= 4) ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_ANS_PREFIX + digit); 
-            else ivrCompiler.playChainedTTS(`t-תשובה מספר ${digit}`);
-            ivrCompiler.playChainedTTS(`t-${opt}`);
+            if (digit <= 4) chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_ANS_PREFIX + digit); 
+            else chainedPrompt.push(`t-תשובה מספר ${digit}`);
+            chainedPrompt.push(`t-${opt}`);
         });
         
-        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.GAME_PROMPT_DIGIT); 
+        chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_PROMPT_DIGIT); 
+        chainedPrompt.push(SYSTEM_CONSTANTS.PROMPTS.GAME_CLOCK); 
+
         await UserRepository.saveProfile(phone, profile);
 
-        // בקשת הקשה חלקה ונפרדת לגמרי
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.GAME_CLOCK, SYSTEM_CONSTANTS.STATE_BASES.GAME_ANSWER_INPUT, 1, 1, 'yes');
+        ivrCompiler.requestDigits(chainedPrompt, SYSTEM_CONSTANTS.STATE_BASES.GAME_ANSWER_INPUT, 1, 1, 'yes');
     }
 }
 
@@ -1018,7 +1053,7 @@ class DomainControllers {
             profile.tempSettingsTranscription = text;
             await UserRepository.saveProfile(phone, profile);
             
-            const playbackPrompt = `${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_PREFIX} ${text}. ${SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_MENU}`;
+            const playbackPrompt =[SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_PREFIX, `t-${text}`, SYSTEM_CONSTANTS.PROMPTS.SETTINGS_CONFIRM_MENU];
             const stateBase = (settingType === 'instructions') ? SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_INSTRUCTIONS_CONFIRM : SYSTEM_CONSTANTS.STATE_BASES.SETTINGS_PROFILE_CONFIRM;
             
             ivrCompiler.requestDigits(playbackPrompt, stateBase, 1, 1, 'no');
@@ -1121,9 +1156,8 @@ class DomainControllers {
         profile.adminTargetPhone = phoneToManage;
         await UserRepository.saveProfile(originalPhone, profile);
         
-        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_PREFIX);
-        ivrCompiler.playChainedTTS(`d-${phoneToManage}`); 
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_CONFIRM, 1, 1);
+        ivrCompiler.playChainedTTS([SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_PREFIX, `d-${phoneToManage}`, SYSTEM_CONSTANTS.PROMPTS.ADMIN_PHONE_CONFIRM_MENU]); 
+        ivrCompiler.requestDigits("", SYSTEM_CONSTANTS.STATE_BASES.ADMIN_USER_CONFIRM, 1, 1);
     }
     
     static async handleAdminUserConfirm(choice, ivrCompiler) {
@@ -1146,8 +1180,7 @@ class DomainControllers {
         }
         
         const currentTarget = users[profile.adminListIndex];
-        ivrCompiler.playChainedTTS(`d-${currentTarget}`);
-        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.ADMIN_LIST_MENU, SYSTEM_CONSTANTS.STATE_BASES.ADMIN_LIST_USERS, 1, 1, 'no');
+        ivrCompiler.requestDigits([`d-${currentTarget}`, SYSTEM_CONSTANTS.PROMPTS.ADMIN_LIST_MENU], SYSTEM_CONSTANTS.STATE_BASES.ADMIN_LIST_USERS, 1, 1, 'no');
     }
     
     static async handleAdminListUsers(phone, choice, ivrCompiler) {
@@ -1207,16 +1240,16 @@ class DomainControllers {
         const isLast = chunks.length <= 1;
         const menuPrompt = isLast ? SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU : pPrompt;
             
-        let combinedPrompt = chunks[0] + "." + menuPrompt;
+        let prompts =[chunks[0], menuPrompt];
         let blockAsterisk = 'yes';
         let stateBase = isLast ? endStateBase : SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE;
 
         if (phoneToCall && phoneToCall.length >= 9) {
-            combinedPrompt = `t-ליצירת קשר עם מפרסם המודעה הקישו כוכבית בכל עת..` + combinedPrompt;
+            prompts.unshift("t-ליצירת קשר עם מפרסם המודעה הקישו כוכבית בכל עת.");
             blockAsterisk = 'no';
         }
 
-        ivrCompiler.requestDigits(combinedPrompt, stateBase, 1, 1, blockAsterisk);
+        ivrCompiler.requestDigits(prompts, stateBase, 1, 1, blockAsterisk);
     }
 
     static async handlePaginationNavigation(phone, choice, callId, ivrCompiler) {
@@ -1247,14 +1280,14 @@ class DomainControllers {
         } 
         else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
-            let combinedPrompt = pag.chunks[pag.currentIndex] + "." + pag.pPrompt;
+            let prompts =[pag.chunks[pag.currentIndex], pag.pPrompt];
             let blockAsterisk = 'yes';
             
             if (pag.phoneToCall && pag.phoneToCall.length >= 9) {
-                combinedPrompt = `t-ליצירת קשר עם מפרסם המודעה הקישו כוכבית בכל עת..` + combinedPrompt;
+                prompts.unshift("t-ליצירת קשר עם מפרסם המודעה הקישו כוכבית בכל עת.");
                 blockAsterisk = 'no';
             }
-            ivrCompiler.requestDigits(combinedPrompt, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1, blockAsterisk);
+            ivrCompiler.requestDigits(prompts, SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE, 1, 1, blockAsterisk);
             return;
         }
 
@@ -1263,16 +1296,16 @@ class DomainControllers {
         const isLast = pag.currentIndex === pag.chunks.length - 1;
         const menuPrompt = isLast ? SYSTEM_CONSTANTS.PROMPTS.CHAT_ACTION_MENU : pag.pPrompt;
             
-        let combinedPrompt = pag.chunks[pag.currentIndex] + "." + menuPrompt;
+        let prompts =[pag.chunks[pag.currentIndex], menuPrompt];
         let blockAsterisk = 'yes';
         let stateBase = isLast ? pag.endStateBase : SYSTEM_CONSTANTS.STATE_BASES.PAGINATION_CHOICE;
 
         if (pag.phoneToCall && pag.phoneToCall.length >= 9) {
-            combinedPrompt = `t-ליצירת קשר עם מפרסם המודעה הקישו כוכבית בכל עת..` + combinedPrompt;
+            prompts.unshift("t-ליצירת קשר עם מפרסם המודעה הקישו כוכבית בכל עת.");
             blockAsterisk = 'no';
         }
 
-        ivrCompiler.requestDigits(combinedPrompt, stateBase, 1, 1, blockAsterisk);
+        ivrCompiler.requestDigits(prompts, stateBase, 1, 1, blockAsterisk);
     }
 
     // ---- HISTORY & SHARING ITEM MANAGEMENT ----
@@ -1423,7 +1456,7 @@ class DomainControllers {
             const chat = sorted[profile.currentTransIndex];
             if(chat) {
                 const code = await SharedChatsManager.sharePublic(chat);
-                ivrCompiler.playChainedTTS(`t-קוד השיחה הפומבי הוא. d-${code}. t-שתפו אותו עם חבריכם.`);
+                ivrCompiler.playChainedTTS([`t-קוד השיחה הפומבי הוא`, `d-${code}`, `t-שתפו אותו עם חבריכם`]);
             }
             await this.initChatHistoryMenu(phone, ivrCompiler);
         } else {
@@ -1435,8 +1468,7 @@ class DomainControllers {
         const profile = await UserRepository.getProfile(phone);
         profile.tempNoticePhone = triggerValue; 
         await UserRepository.saveProfile(phone, profile);
-        ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SHARE_PHONES_CONFIRM);
-        ivrCompiler.requestDigits("", SYSTEM_CONSTANTS.STATE_BASES.HISTORY_SHARE_PHONES_CONFIRM, 1, 1, 'yes');
+        ivrCompiler.requestDigits(SYSTEM_CONSTANTS.PROMPTS.SHARE_PHONES_CONFIRM, SYSTEM_CONSTANTS.STATE_BASES.HISTORY_SHARE_PHONES_CONFIRM, 1, 1, 'yes');
     }
 
     static async handleSharePhonesConfirm(phone, choice, ivrCompiler) {
@@ -1678,8 +1710,7 @@ class DomainControllers {
         profile.tempNoticePhone = triggerValue;
         await UserRepository.saveProfile(phone, profile);
         
-        ivrCompiler.playChainedTTS(`t-המספר שהוקש הוא. d-${triggerValue}. לאישור הקישו 1, להקשה מחדש הקישו 2.`);
-        ivrCompiler.requestDigits("", SYSTEM_CONSTANTS.STATE_BASES.NOTICE_PHONE_CONFIRM, 1, 1, 'yes');
+        ivrCompiler.requestDigits(["t-המספר שהוקש הוא", `d-${triggerValue}`, "t-לאישור הקישו 1, להקשה מחדש הקישו 2"], SYSTEM_CONSTANTS.STATE_BASES.NOTICE_PHONE_CONFIRM, 1, 1, 'yes');
     }
 
     static async handleNoticePhoneConfirm(phone, callId, choice, ivrCompiler) {
@@ -1698,8 +1729,7 @@ class DomainControllers {
             ivrCompiler.requestDigits("", SYSTEM_CONSTANTS.STATE_BASES.NOTICE_PHONE_INPUT, 9, 10, 'yes');
         } else {
             ivrCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.INVALID_CHOICE);
-            ivrCompiler.playChainedTTS(`t-המספר שהוקש הוא. d-${profile.tempNoticePhone}. לאישור הקישו 1, להקשה מחדש הקישו 2.`);
-            ivrCompiler.requestDigits("", SYSTEM_CONSTANTS.STATE_BASES.NOTICE_PHONE_CONFIRM, 1, 1, 'yes');
+            ivrCompiler.requestDigits(["t-המספר שהוקש הוא", `d-${profile.tempNoticePhone}`, "t-לאישור הקישו 1, להקשה מחדש הקישו 2"], SYSTEM_CONSTANTS.STATE_BASES.NOTICE_PHONE_CONFIRM, 1, 1, 'yes');
         }
     }
 }
@@ -1903,7 +1933,7 @@ export default async function handler(req, res) {
     } catch (globalException) {
         Logger.error("Global_Catch_Block", "Critical failure.", globalException);
         const fallbackCompiler = new YemotResponseCompiler();
-        fallbackCompiler.playChainedTTS(SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR_FALLBACK).routeToFolder("hangup");
+        fallbackCompiler.playChainedTTS([SYSTEM_CONSTANTS.PROMPTS.SYSTEM_ERROR_FALLBACK]).routeToFolder("hangup");
         return sendHTTPResponse(res, fallbackCompiler.compile());
     }
 }
