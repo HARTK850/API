@@ -25,7 +25,7 @@ const SYSTEM_CONSTANTS = {
     RETRY_POLICY: { MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2 },
     PROMPTS: {
         // Raw Hebrew Texts (No prefixes needed anymore, the compiler handles them)
-        MAIN_MENU: "לשיחת צ'אט הקישו 1. להיסטוריית שיחות הקישו 2. למידע על המערכת הקישו 0. לתפריט הגדרות הקישו כוכבית.",
+        MAIN_MENU: "f-main_menu",
         INFO_MENU: "לשמיעת נתוני המערכת הקישו 9. לחזרה הקישו 0.",
         NEW_CHAT_RECORD: "אנא הקליטו את בקשתכם לאחר הצליל, ובסיום הקישו סולמית.",
         NO_HISTORY: "אין לכם היסטוריית שיחות במערכת.",
